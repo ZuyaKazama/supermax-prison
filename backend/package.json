@@ -1,0 +1,23 @@
+{
+  "name": "sipenjara-backend",
+  "version": "3.0.0",
+  "description": "SIPENJARA - Sistem Informasi Pemasyarakatan Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "midtrans-client": "^1.4.3",
+    "sqlite3": "^5.1.7"
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: sipenjara
+    runtime: docker
+    repo: https://github.com/ZuyaKazama/supermax-prison
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/inmates
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # Set di Render Dashboard
+      - key: MIDTRANS_SERVER_KEY
+        sync: false  # Set di Render Dashboard
+      - key: MIDTRANS_CLIENT_KEY
+        sync: false  # Set di Render Dashboard
