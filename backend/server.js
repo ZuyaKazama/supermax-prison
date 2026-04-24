@@ -12,7 +12,8 @@ app.use(express.json());
 // =================================================================
 // 🔐 KONFIGURASI GOOGLE OAUTH
 // =================================================================
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const RAW_GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '872620897918-8ijpo28bm92f1fq8v5i34ip74dme1oa1.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = RAW_GOOGLE_CLIENT_ID.trim().replace(/['"]/g, '');
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // =================================================================
