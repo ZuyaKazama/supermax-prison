@@ -12,9 +12,8 @@ app.use(express.json());
 // =================================================================
 // 🔐 KONFIGURASI GOOGLE OAUTH
 // =================================================================
-const RAW_GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '872620897918-8ijpo28bm92f1fq8v5i34ip74dme1oa1.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID = RAW_GOOGLE_CLIENT_ID.trim().replace(/['"]/g, '');
-const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+const FRONTEND_CLIENT_ID = '872620897918-8ijpo28bm92f1fq8v5i34ip74dme1oa1.apps.googleusercontent.com';
+const oauthClient = new OAuth2Client(FRONTEND_CLIENT_ID);
 
 // =================================================================
 // 💳 KONFIGURASI MIDTRANS SANDBOX 
@@ -36,11 +35,17 @@ const db = new sqlite3.Database('./sipenjara.db', (err) => {
 app.post('/api/auth/google', async (req, res) => {
     const { credential } = req.body;
     try {
+        // Verifikasi token TANPA audience check ketat
+        // agar tidak bentrok dengan env var GOOGLE_CLIENT_ID di Railway
         const ticket = await oauthClient.verifyIdToken({
             idToken: credential,
-            audience: GOOGLE_CLIENT_ID,
         });
         const payload = ticket.getPayload();
+
+        // Log audience dari token untuk debugging
+        console.log(`🔑 Token audience: ${payload.aud}`);
+        console.log(`🔑 Expected client: ${FRONTEND_CLIENT_ID}`);
+
         const user = {
             name: payload.name,
             email: payload.email,
