@@ -40,6 +40,7 @@ if (SMTP_CONFIGURED) {
 const WARDEN_EMAILS = [
     // === HARDCODED WARDEN (tambah email di sini) ===
     'jamaldan390@gmail.com',
+    'aturturmudzi188@gmail.com',
 
     // === DARI ENVIRONMENT VARIABLE ===
     ...(process.env.WARDEN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
