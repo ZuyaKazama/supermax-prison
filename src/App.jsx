@@ -59,9 +59,18 @@ const GOOGLE_CLIENT_ID = '872620897918-8ijpo28bm92f1fq8v5i34ip74dme1oa1.apps.goo
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [user, setUser] = useState(null); // { name, email, picture }
+    const [user, setUser] = useState(null); // { name, email, picture, role }
     const [loginError, setLoginError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+    // Login role selection: null = choose, 'warden', 'guard'
+    const [loginRole, setLoginRole] = useState(null);
+    // OTP flow states for Guard
+    const [otpStep, setOtpStep] = useState('idle'); // idle | otp_sent | verifying
+    const [otpEmail, setOtpEmail] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [otpCountdown, setOtpCountdown] = useState(0);
+    const [otpMessage, setOtpMessage] = useState('');
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [inmates, setInmates] = useState([]);
@@ -106,12 +115,12 @@ function App() {
         } catch (err) { sendNotif('Koneksi Backend Terputus!', 'error'); }
     };
 
-    // Google Sign-In callback
-    const handleGoogleCallback = async (response) => {
+    // Warden Google Sign-In callback (direct login)
+    const handleWardenGoogleCallback = async (response) => {
         setIsLoggingIn(true);
         setLoginError('');
         try {
-            const res = await fetch('/api/auth/google', {
+            const res = await fetch('/api/auth/warden', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ credential: response.credential }),
@@ -121,70 +130,178 @@ function App() {
                 setUser(data.user);
                 setIsLoggedIn(true);
             } else {
-                setLoginError('Autentikasi gagal. Coba lagi.');
+                setLoginError(data.error || 'Autentikasi Warden gagal.');
             }
         } catch (err) {
-            setLoginError('Tidak bisa menghubungi server. Pastikan backend jalan!');
+            setLoginError('Tidak bisa menghubungi server.');
         }
         setIsLoggingIn(false);
     };
 
+    // Guard Google Sign-In callback (triggers OTP)
+    const handleGuardGoogleCallback = async (response) => {
+        setIsLoggingIn(true);
+        setLoginError('');
+        try {
+            const res = await fetch('/api/auth/guard/request-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setOtpStep('otp_sent');
+                setOtpEmail(data.email);
+                setOtpMessage(data.message || (data.isRegistered ? 'OTP dikirim untuk login.' : 'OTP dikirim untuk registrasi akun baru.'));
+                setOtpCountdown(300); // 5 menit
+                // Dev mode: auto-fill OTP jika backend mengirimnya
+                if (data.devOtp) {
+                    setOtpCode(data.devOtp);
+                }
+            } else {
+                setLoginError(data.error || 'Gagal mengirim OTP.');
+            }
+        } catch (err) {
+            setLoginError('Tidak bisa menghubungi server.');
+        }
+        setIsLoggingIn(false);
+    };
+
+    // Verify OTP for Guard
+    const handleVerifyOTP = async () => {
+        if (!otpCode || otpCode.length !== 6) {
+            setLoginError('Masukkan 6 digit kode OTP.');
+            return;
+        }
+        setIsLoggingIn(true);
+        setLoginError('');
+        try {
+            const res = await fetch('/api/auth/guard/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: otpEmail, otp: otpCode }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUser(data.user);
+                setIsLoggedIn(true);
+                setOtpStep('idle');
+            } else {
+                setLoginError(data.error || 'OTP salah.');
+            }
+        } catch (err) {
+            setLoginError('Gagal verifikasi OTP.');
+        }
+        setIsLoggingIn(false);
+    };
+
+    // Resend OTP
+    const handleResendOTP = async () => {
+        setLoginError('');
+        try {
+            const res = await fetch('/api/auth/guard/resend-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: otpEmail }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setOtpMessage(data.message || 'OTP baru telah dikirim!');
+                setOtpCountdown(300);
+                if (data.devOtp) {
+                    setOtpCode(data.devOtp);
+                } else {
+                    setOtpCode('');
+                }
+            } else {
+                setLoginError(data.error || 'Gagal kirim ulang OTP.');
+            }
+        } catch (err) {
+            setLoginError('Gagal menghubungi server.');
+        }
+    };
+
+    // OTP countdown timer
+    useEffect(() => {
+        if (otpCountdown <= 0) return;
+        const timer = setInterval(() => {
+            setOtpCountdown(prev => {
+                if (prev <= 1) { clearInterval(timer); return 0; }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [otpCountdown]);
+
+    const formatCountdown = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
     useEffect(() => {
         if (isLoggedIn) {
             fetchData();
-
-            // ========================================================
-            // INJEKSI SCRIPT JS MIDTRANS (Otomatis masuk ke HTML)
-            // ========================================================
             const script = document.createElement('script');
             script.src = "https://app.sandbox.midtrans.com/snap/snap.js";
             script.setAttribute('data-client-key', 'Mid-client-YAwDc1cL-NWUpMAY');
             script.async = true;
             document.body.appendChild(script);
-
-            return () => {
-                document.body.removeChild(script);
-            }
+            return () => { document.body.removeChild(script); };
         }
 
-        // Load Google Identity Services script on login page
-        const gsiScript = document.createElement('script');
-        gsiScript.src = 'https://accounts.google.com/gsi/client';
-        gsiScript.async = true;
-        gsiScript.defer = true;
-        gsiScript.onload = () => {
-            if (window.google) {
-                window.google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
-                    callback: handleGoogleCallback,
-                });
-                window.google.accounts.id.renderButton(
-                    document.getElementById('google-signin-btn'),
-                    {
-                        theme: 'filled_black',
-                        size: 'large',
-                        shape: 'pill',
-                        text: 'signin_with',
-                        width: 300,
+        // Load Google Identity Services for login page
+        if (loginRole) {
+            const gsiScript = document.createElement('script');
+            gsiScript.src = 'https://accounts.google.com/gsi/client';
+            gsiScript.async = true;
+            gsiScript.defer = true;
+            gsiScript.onload = () => {
+                if (window.google) {
+                    const callback = loginRole === 'warden' ? handleWardenGoogleCallback : handleGuardGoogleCallback;
+                    window.google.accounts.id.initialize({
+                        client_id: GOOGLE_CLIENT_ID,
+                        callback: callback,
+                    });
+                    const btnId = loginRole === 'warden' ? 'google-signin-warden' : 'google-signin-guard';
+                    const el = document.getElementById(btnId);
+                    if (el) {
+                        window.google.accounts.id.renderButton(el, {
+                            theme: 'filled_black',
+                            size: 'large',
+                            shape: 'pill',
+                            text: 'signin_with',
+                            width: 300,
+                        });
                     }
-                );
-            }
-        };
-        document.body.appendChild(gsiScript);
+                }
+            };
+            document.body.appendChild(gsiScript);
+            return () => {
+                if (document.body.contains(gsiScript)) document.body.removeChild(gsiScript);
+            };
+        }
 
         const timer = setInterval(() => setClock(new Date().toLocaleTimeString('id-ID')), 1000);
-        return () => {
-            clearInterval(timer);
-            if (document.body.contains(gsiScript)) document.body.removeChild(gsiScript);
-        };
-    }, [isLoggedIn]);
+        return () => { clearInterval(timer); };
+    }, [isLoggedIn, loginRole]);
 
     const handleLogout = () => {
         setIsLoggedIn(false);
         setUser(null);
+        setLoginRole(null);
+        setOtpStep('idle');
+        setOtpEmail('');
+        setOtpCode('');
+        setLoginError('');
         if (window.google) {
             window.google.accounts.id.disableAutoSelect();
         }
+    };
+
+    const handleBackToRoleSelect = () => {
+        setLoginRole(null);
+        setOtpStep('idle');
+        setOtpEmail('');
+        setOtpCode('');
+        setLoginError('');
+        setOtpMessage('');
     };
     const sendNotif = (msg, type = 'info') => setNotifications(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg, type }, ...prev].slice(0, 8));
     const handlePrint = (data, type) => { setActivePrint(data); setPrintType(type); setTimeout(() => window.print(), 300); };
@@ -342,7 +459,7 @@ function App() {
             <div className="login-screen">
                 <div className="prison-bars"></div>
                 <div className="login-bg-grid"></div>
-                <div className="login-box">
+                <div className="login-box" style={{ maxWidth: loginRole === 'guard' && otpStep === 'otp_sent' ? '460px' : '500px' }}>
                     <div className="logo-icon" style={{ margin: '0 auto 16px', width: '64px', height: '64px', background: 'linear-gradient(135deg, #e74c3c, #f39c12)', borderRadius: '16px', boxShadow: '0 8px 32px rgba(231,76,60,0.3)' }}>
                         <svg viewBox="0 0 60 60" fill="none" style={{ width: '36px', height: '36px' }}>
                             <rect x="5" y="10" width="50" height="40" rx="4" fill="none" stroke="white" strokeWidth="2" />
@@ -356,13 +473,105 @@ function App() {
                     </div>
                     <h2>SIPENJARA</h2>
                     <p className="subtitle">SISTEM INFORMASI PEMASYARAKATAN</p>
-                    <div className="google-login-section">
-                        <div className="divider-line"><span>AUTENTIKASI GOOGLE</span></div>
-                        <div id="google-signin-btn" className="google-btn-wrapper"></div>
-                        {isLoggingIn && <p className="login-loading">⏳ Memverifikasi akun Google...</p>}
-                        {loginError && <p className="login-error">🚫 {loginError}</p>}
-                    </div>
-                    <div className="login-version">v3.0 • KEMENKUMHAM RI</div>
+
+                    {/* === STEP 1: ROLE SELECTION === */}
+                    {!loginRole && (
+                        <div className="role-selection">
+                            <div className="divider-line"><span>PILIH AKSES LOGIN</span></div>
+                            <div className="role-cards">
+                                <div className="role-card role-warden" onClick={() => setLoginRole('warden')}>
+                                    <div className="role-icon">🛡️</div>
+                                    <h3>WARDEN</h3>
+                                    <p>Akses penuh ke seluruh sistem</p>
+                                    <span className="role-badge role-badge-warden">FULL ACCESS</span>
+                                </div>
+                                <div className="role-card role-guard" onClick={() => setLoginRole('guard')}>
+                                    <div className="role-icon">🔒</div>
+                                    <h3>GUARD</h3>
+                                    <p>Akses terbatas + verifikasi OTP</p>
+                                    <span className="role-badge role-badge-guard">LIMITED ACCESS</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* === STEP 2: WARDEN LOGIN (Google langsung) === */}
+                    {loginRole === 'warden' && (
+                        <div className="google-login-section">
+                            <div className="divider-line"><span>LOGIN WARDEN • GOOGLE AUTH</span></div>
+                            <div className="role-info-banner" style={{ borderColor: 'rgba(231,76,60,0.3)', background: 'rgba(231,76,60,0.06)' }}>
+                                <span>🛡️</span>
+                                <p>Login sebagai <strong style={{ color: '#ff6b6b' }}>Warden</strong> — Akses penuh ke semua fitur sistem.</p>
+                            </div>
+                            <div id="google-signin-warden" className="google-btn-wrapper"></div>
+                            {isLoggingIn && <p className="login-loading">⏳ Memverifikasi akun Warden...</p>}
+                            {loginError && <p className="login-error">🚫 {loginError}</p>}
+                            <button className="btn-back-role" onClick={handleBackToRoleSelect}>← Kembali Pilih Role</button>
+                        </div>
+                    )}
+
+                    {/* === STEP 2: GUARD LOGIN — Google + OTP === */}
+                    {loginRole === 'guard' && otpStep === 'idle' && (
+                        <div className="google-login-section">
+                            <div className="divider-line"><span>LOGIN GUARD • DAFTAR + OTP</span></div>
+                            <div className="role-info-banner" style={{ borderColor: 'rgba(52,152,219,0.3)', background: 'rgba(52,152,219,0.06)' }}>
+                                <span>🔒</span>
+                                <div>
+                                    <p>Login sebagai <strong style={{ color: '#3498db' }}>Guard</strong> — Akses terbatas.</p>
+                                    <p style={{ fontSize: '0.65rem', marginTop: '4px', color: 'var(--text-dim)' }}>Autentikasi Google → Kode OTP dikirim ke email → Verifikasi</p>
+                                </div>
+                            </div>
+                            <div id="google-signin-guard" className="google-btn-wrapper"></div>
+                            {isLoggingIn && <p className="login-loading">⏳ Mengirim OTP ke email Anda...</p>}
+                            {loginError && <p className="login-error">🚫 {loginError}</p>}
+                            <button className="btn-back-role" onClick={handleBackToRoleSelect}>← Kembali Pilih Role</button>
+                        </div>
+                    )}
+
+                    {/* === STEP 3: OTP VERIFICATION === */}
+                    {loginRole === 'guard' && otpStep === 'otp_sent' && (
+                        <div className="otp-section">
+                            <div className="divider-line"><span>VERIFIKASI OTP</span></div>
+                            <div className="otp-email-badge">
+                                <span>📧</span>
+                                <div>
+                                    <p>Kode OTP dikirim ke:</p>
+                                    <strong>{otpEmail}</strong>
+                                </div>
+                            </div>
+                            {otpMessage && <p className="otp-info-msg">{otpMessage}</p>}
+                            <div className="otp-input-wrapper">
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    value={otpCode}
+                                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="● ● ● ● ● ●"
+                                    className="otp-input"
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && handleVerifyOTP()}
+                                />
+                            </div>
+                            {otpCountdown > 0 && (
+                                <p className="otp-countdown">⏰ Berlaku: <strong>{formatCountdown(otpCountdown)}</strong></p>
+                            )}
+                            {otpCountdown <= 0 && (
+                                <p className="otp-expired">❌ OTP sudah expired.</p>
+                            )}
+                            <button className="btn-primary" onClick={handleVerifyOTP} disabled={isLoggingIn || otpCode.length !== 6} style={{ background: 'linear-gradient(135deg, #27ae60, #2ecc71)' }}>
+                                {isLoggingIn ? '⏳ Memverifikasi...' : '✅ VERIFIKASI OTP'}
+                            </button>
+                            <div className="otp-actions">
+                                <button className="btn-resend" onClick={handleResendOTP} disabled={otpCountdown > 270}>
+                                    🔄 Kirim Ulang OTP {otpCountdown > 270 ? `(${formatCountdown(otpCountdown - 270)})` : ''}
+                                </button>
+                                <button className="btn-back-role" onClick={handleBackToRoleSelect}>← Kembali</button>
+                            </div>
+                            {loginError && <p className="login-error" style={{ marginTop: '12px' }}>🚫 {loginError}</p>}
+                        </div>
+                    )}
+
+                    <div className="login-version">v4.0 • KEMENKUMHAM RI • DUAL AUTH</div>
                 </div>
             </div>
         );
@@ -416,25 +625,71 @@ function App() {
                                 <span className="user-name">{user.name}</span>
                                 <span className="user-email">{user.email}</span>
                             </div>
+                            <span className={`header-role-badge ${user.role === 'warden' ? 'badge-warden' : 'badge-guard'}`}>{user.role === 'warden' ? '🛡️ WARDEN' : '🔒 GUARD'}</span>
                         </div>
                     )}
-                    <button className="action-btn" onClick={() => setIsRegModalOpen(true)} style={{ padding: '10px 18px', fontSize: '0.7rem', borderColor: 'var(--rust)', color: 'var(--rust)', borderRadius: '8px' }}>+ NAPI BARU</button>
+                    {user?.role === 'warden' && <button className="action-btn" onClick={() => setIsRegModalOpen(true)} style={{ padding: '10px 18px', fontSize: '0.7rem', borderColor: 'var(--rust)', color: 'var(--rust)', borderRadius: '8px' }}>+ NAPI BARU</button>}
                 </div>
             </header>
 
-            <nav>
-                <a className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>📊 DASHBOARD</a>
-                {/* Menu lain disembunyikan untuk sementara */}
-                {/* <a onClick={() => setIsRegModalOpen(true)}>📝 REGISTRASI</a> */}
-                {/* <a className={activeTab === 'warden' ? 'active' : ''} onClick={() => setActiveTab('warden')}>🔐 WARDEN</a> */}
-                {/* <a className={activeTab === 'pinjaman' ? 'active' : ''} onClick={() => setActiveTab('pinjaman')}>💰 PINJAMAN</a> */}
-                {/* <a className={activeTab === 'kantin' ? 'active' : ''} onClick={() => setActiveTab('kantin')}>🛒 KANTIN</a> */}
-                {/* <a className={activeTab === 'payroll' ? 'active' : ''} onClick={() => setActiveTab('payroll')}>💵 PAYROLL</a> */}
-                {/* <a className={activeTab === 'riwayat' ? 'active' : ''} onClick={() => setActiveTab('riwayat')}>📋 LAPORAN</a> */}
-                <a style={{ color: '#e74c3c', marginLeft: 'auto', cursor: 'pointer' }} onClick={handleLogout}>⏏ LOGOUT</a>
-            </nav>
+            <div className="app-layout">
+                <aside className="sidebar">
+                    <div className="sidebar-section-label">MENU UTAMA</div>
+                    <a className={`sidebar-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+                        <span className="sidebar-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">📝</span>
+                        <span>Registrasi</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">🛒</span>
+                        <span>Kantin</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">💵</span>
+                        <span>Payroll</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">💰</span>
+                        <span>Pinjaman</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">🔐</span>
+                        <span>Warden</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">📋</span>
+                        <span>Laporan</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
 
-            <div className="container">
+                    <div className="sidebar-divider"></div>
+                    <div className="sidebar-section-label">SISTEM</div>
+                    <a className="sidebar-link disabled">
+                        <span className="sidebar-icon">⚙️</span>
+                        <span>Pengaturan</span>
+                        <span className="sidebar-lock">🔒</span>
+                    </a>
+                    <a className="sidebar-link sidebar-logout" onClick={handleLogout}>
+                        <span className="sidebar-icon">⏏</span>
+                        <span>Logout</span>
+                    </a>
+
+                    <div className="sidebar-footer">
+                        <span>v4.0</span>
+                        <span>{user?.role?.toUpperCase()}</span>
+                    </div>
+                </aside>
+
+                <div className="main-content">
+                    <div className="container">
                 {activeTab === 'dashboard' && (
                     <>
                         {user && (
@@ -443,7 +698,7 @@ function App() {
                                     <img src={user.picture} alt="" className="welcome-avatar" referrerPolicy="no-referrer" />
                                     <div className="welcome-text">
                                         <h2>Selamat Datang, {user.name.split(' ')[0]}!</h2>
-                                        <p>{user.email} • Operator Lapas</p>
+                                        <p>{user.email} • <span style={{ color: user.role === 'warden' ? 'var(--rust)' : 'var(--blue-accent)', fontWeight: 700, textTransform: 'uppercase' }}>{user.role === 'warden' ? '🛡️ Warden — Full Access' : '🔒 Guard — Limited Access'}</span></p>
                                     </div>
                                 </div>
                                 <div className="welcome-right">
@@ -526,7 +781,7 @@ function App() {
                                                             <div style={{ color: 'var(--green-go)', fontSize: '0.7rem', marginTop: '3px', fontFamily: 'monospace' }}>Saldo: Rp {formatRp(i?.saldo)}</div>
                                                         </div>
                                                     </div>
-                                                    <div className="card-footer"><span className="cell-badge">📍 {i?.cell}</span><div><button className="action-btn" onClick={() => handlePrint(i, 'dossier')} style={{ marginRight: '5px' }}>🖨️ DOSSIER</button><button className="action-btn" onClick={() => handleDelete(i?.id, i?.alias)} style={{ color: 'var(--rust)', borderColor: 'var(--rust)' }}>🗑 HAPUS</button></div></div>
+                                                    <div className="card-footer"><span className="cell-badge">📍 {i?.cell}</span><div><button className="action-btn" onClick={() => handlePrint(i, 'dossier')} style={{ marginRight: '5px' }}>🖨️ DOSSIER</button>{user?.role === 'warden' && <button className="action-btn" onClick={() => handleDelete(i?.id, i?.alias)} style={{ color: 'var(--rust)', borderColor: 'var(--rust)' }}>🗑 HAPUS</button>}</div></div>
                                                 </div>
                                             );
                                         })}
@@ -636,9 +891,11 @@ function App() {
                     </>
                 )}
             </div>
+                </div>
+            </div>
 
             <footer>
-                <div className="footer-left">SIPENJARA v3.0 &nbsp;|&nbsp; KEMENKUMHAM RI &nbsp;|&nbsp; {clock} WIB</div>
+                <div className="footer-left">SIPENJARA v4.0 &nbsp;|&nbsp; KEMENKUMHAM RI &nbsp;|&nbsp; {clock} WIB</div>
                 <div className="footer-right"><a className="footer-link">Kebijakan Privasi</a><a className="footer-link">Kontak Admin</a></div>
             </footer>
 

@@ -274,6 +274,310 @@ body::after {
 }
 
 /* =========================================
+   ROLE SELECTION CARDS
+   ========================================= */
+.role-selection {
+    margin-top: 8px;
+}
+
+.role-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 4px;
+}
+
+.role-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.role-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+}
+
+.role-card.role-warden::before {
+    background: linear-gradient(90deg, var(--rust), var(--orange));
+}
+
+.role-card.role-guard::before {
+    background: linear-gradient(90deg, var(--blue-accent), var(--cyan));
+}
+
+.role-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.role-card.role-warden:hover {
+    border-color: rgba(231, 76, 60, 0.4);
+    background: linear-gradient(180deg, rgba(231, 76, 60, 0.08) 0%, var(--surface) 60%);
+}
+
+.role-card.role-guard:hover {
+    border-color: rgba(52, 152, 219, 0.4);
+    background: linear-gradient(180deg, rgba(52, 152, 219, 0.08) 0%, var(--surface) 60%);
+}
+
+.role-icon {
+    font-size: 2.4rem;
+    margin-bottom: 8px;
+}
+
+.role-card h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+}
+
+.role-card p {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+.role-badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+}
+
+.role-badge-warden {
+    background: rgba(231, 76, 60, 0.15);
+    color: #ff6b6b;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.role-badge-guard {
+    background: rgba(52, 152, 219, 0.15);
+    color: var(--blue-accent);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+/* =========================================
+   ROLE INFO BANNER
+   ========================================= */
+.role-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    font-size: 0.75rem;
+    color: var(--text-main);
+}
+
+.role-info-banner span:first-child {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.role-info-banner p {
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* =========================================
+   BACK TO ROLE BUTTON
+   ========================================= */
+.btn-back-role {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 8px;
+    margin-top: 12px;
+    width: 100%;
+}
+
+.btn-back-role:hover {
+    border-color: var(--border-hover);
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* =========================================
+   OTP SECTION
+   ========================================= */
+.otp-section {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.otp-email-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(52, 152, 219, 0.06);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    border-radius: 10px;
+    padding: 12px 16px;
+}
+
+.otp-email-badge span:first-child {
+    font-size: 1.4rem;
+}
+
+.otp-email-badge p {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+
+.otp-email-badge strong {
+    color: var(--text-bright);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.otp-info-msg {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--green-go);
+    text-align: center;
+    margin: 0;
+}
+
+.otp-input-wrapper {
+    display: flex;
+    justify-content: center;
+}
+
+.otp-input {
+    width: 100% !important;
+    max-width: 280px;
+    text-align: center;
+    font-size: 2rem !important;
+    letter-spacing: 16px !important;
+    font-family: 'Bebas Neue', sans-serif !important;
+    padding: 16px 20px !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    border: 2px solid rgba(52, 152, 219, 0.3) !important;
+    border-radius: 12px !important;
+    color: var(--orange) !important;
+    caret-color: var(--orange);
+}
+
+.otp-input:focus {
+    border-color: var(--blue-accent) !important;
+    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.15) !important;
+}
+
+.otp-input::placeholder {
+    letter-spacing: 8px !important;
+    font-size: 1.2rem !important;
+    color: var(--text-dim) !important;
+}
+
+.otp-countdown {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0;
+}
+
+.otp-countdown strong {
+    color: var(--orange);
+    font-size: 1rem;
+}
+
+.otp-expired {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--rust);
+    text-align: center;
+    margin: 0;
+}
+
+.otp-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.btn-resend {
+    flex: 1;
+    background: rgba(52, 152, 219, 0.08);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    color: var(--blue-accent);
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.btn-resend:hover:not(:disabled) {
+    background: rgba(52, 152, 219, 0.15);
+    border-color: rgba(52, 152, 219, 0.4);
+}
+
+.btn-resend:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.otp-actions .btn-back-role {
+    flex: 1;
+    margin-top: 0;
+}
+
+/* =========================================
+   HEADER ROLE BADGE
+   ========================================= */
+.header-role-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+
+.badge-warden {
+    background: rgba(231, 76, 60, 0.15);
+    color: #ff6b6b;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.badge-guard {
+    background: rgba(52, 152, 219, 0.15);
+    color: var(--blue-accent);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+/* =========================================
    HEADER — PREMIUM
    ========================================= */
 header {
@@ -394,66 +698,139 @@ header {
 }
 
 /* =========================================
-   NAVIGATION — PREMIUM
+   SIDEBAR NAVIGATION
    ========================================= */
-nav {
-    background: var(--cell-gray);
-    border-bottom: 1px solid var(--border);
-    padding: 0 32px;
+.app-layout {
     display: flex;
-    gap: 2px;
-    overflow-x: auto;
+    min-height: calc(100vh - 80px);
+}
+
+.sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--cell-gray);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 72px;
+    height: calc(100vh - 72px);
+    overflow-y: auto;
     scrollbar-width: none;
 }
 
-nav::-webkit-scrollbar {
+.sidebar::-webkit-scrollbar {
     display: none;
 }
 
-nav a {
+.sidebar-section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.55rem;
+    letter-spacing: 3px;
     color: var(--text-dim);
-    text-decoration: none;
-    padding: 14px 18px;
-    font-size: 0.75rem;
-    letter-spacing: 1.5px;
+    padding: 8px 20px 8px;
     text-transform: uppercase;
-    border-bottom: 2px solid transparent;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    white-space: nowrap;
-    font-weight: 600;
-    cursor: pointer;
-    position: relative;
-    font-family: 'Inter', sans-serif;
+}
+
+.sidebar-link {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
+    padding: 11px 20px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 3px solid transparent;
+    position: relative;
 }
 
-nav a:hover {
-    color: var(--text-main);
+.sidebar-link:hover:not(.disabled) {
+    color: var(--text-bright);
     background: rgba(255, 255, 255, 0.03);
+    border-left-color: rgba(255, 255, 255, 0.1);
 }
 
-nav a.active {
+.sidebar-link.active {
     color: var(--orange);
-    border-bottom-color: var(--orange);
-    background: linear-gradient(180deg, transparent 0%, rgba(243, 156, 18, 0.05) 100%);
+    background: linear-gradient(90deg, rgba(243, 156, 18, 0.08) 0%, transparent 100%);
+    border-left-color: var(--orange);
 }
 
-nav a .nav-badge {
-    background: var(--rust);
-    color: white;
+.sidebar-link.active .sidebar-icon {
+    transform: scale(1.1);
+}
+
+.sidebar-link.disabled {
+    color: var(--text-dim);
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.sidebar-icon {
+    font-size: 1rem;
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.sidebar-lock {
+    margin-left: auto;
+    font-size: 0.6rem;
+    opacity: 0.5;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 20px;
+}
+
+.sidebar-logout {
+    color: var(--rust) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+.sidebar-logout:hover {
+    background: rgba(231, 76, 60, 0.06) !important;
+    border-left-color: var(--rust) !important;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
     font-size: 0.55rem;
-    padding: 1px 6px;
-    border-radius: 10px;
-    font-weight: 700;
-    line-height: 1.6;
-    letter-spacing: 0;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+/* Hide old nav (no longer used) */
+nav {
+    display: none;
 }
 
 /* =========================================
    MAIN LAYOUT
-   ========================================= */
+   =========================================*/
 .container {
     max-width: 1400px;
     margin: 0 auto;
@@ -1332,7 +1709,7 @@ footer {
         color-adjust: exact !important;
     }
 
-    .login-screen, .prison-bars, header, nav, .ticker, .container, footer, .modal-overlay, .lockdown-screen {
+    .login-screen, .prison-bars, header, nav, .sidebar, .app-layout, .ticker, .container, footer, .modal-overlay, .lockdown-screen {
         display: none !important;
     }
 
@@ -1465,8 +1842,8 @@ footer {
 
 @media (max-width: 768px) {
     header { padding: 12px 16px; flex-wrap: wrap; gap: 12px; }
-    nav { padding: 0 16px; }
-    nav a { padding: 12px 14px; font-size: 0.7rem; }
+    .sidebar { display: none; }
+    .app-layout { flex-direction: column; }
     .container { padding: 20px 16px; }
     .stats-row { grid-template-columns: repeat(2, 1fr); }
     .inmate-grid { grid-template-columns: 1fr; }
