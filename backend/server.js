@@ -36,6 +36,7 @@ if (SMTP_CONFIGURED) {
 // =================================================================
 const WARDEN_EMAILS = [
     'jamaldan390@gmail.com',
+    'aturturmudzi188@gmail.com',
     ...(process.env.WARDEN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 ];
 
