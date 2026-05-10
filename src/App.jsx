@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import Kantin from './components/Kantin';
+import Telepon from './components/Telepon';
+import Laundry from './components/Laundry';
+import Deposit from './components/Deposit';
+import Riwayat from './components/Riwayat';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -87,7 +92,6 @@ function App() {
 
     const [selectedInmateId, setSelectedInmateId] = useState('');
     const [cart, setCart] = useState([]);
-    const [loanAmount, setLoanAmount] = useState('');
 
     const [regName, setRegName] = useState('');
     const [regAlias, setRegAlias] = useState('');
@@ -639,51 +643,39 @@ function App() {
                         <span className="sidebar-icon">📊</span>
                         <span>Dashboard</span>
                     </a>
-                    <a className="sidebar-link disabled">
-                        <span className="sidebar-icon">📝</span>
-                        <span>Registrasi</span>
-                        <span className="sidebar-lock">🔒</span>
-                    </a>
-                    <a className="sidebar-link disabled">
+                    <a className={`sidebar-link ${activeTab === 'kantin' ? 'active' : ''}`} onClick={() => setActiveTab('kantin')}>
                         <span className="sidebar-icon">🛒</span>
                         <span>Kantin</span>
-                        <span className="sidebar-lock">🔒</span>
                     </a>
-                    <a className="sidebar-link disabled">
-                        <span className="sidebar-icon">💵</span>
-                        <span>Payroll</span>
-                        <span className="sidebar-lock">🔒</span>
+                    <a className={`sidebar-link ${activeTab === 'telepon' ? 'active' : ''}`} onClick={() => setActiveTab('telepon')}>
+                        <span className="sidebar-icon">📞</span>
+                        <span>Telepon</span>
                     </a>
-                    <a className="sidebar-link disabled">
+                    <a className={`sidebar-link ${activeTab === 'laundry' ? 'active' : ''}`} onClick={() => setActiveTab('laundry')}>
+                        <span className="sidebar-icon">👕</span>
+                        <span>Laundry</span>
+                    </a>
+
+                    <div className="sidebar-divider"></div>
+                    <div className="sidebar-section-label">KEUANGAN</div>
+                    <a className={`sidebar-link ${activeTab === 'deposit' ? 'active' : ''}`} onClick={() => setActiveTab('deposit')}>
                         <span className="sidebar-icon">💰</span>
-                        <span>Pinjaman</span>
-                        <span className="sidebar-lock">🔒</span>
+                        <span>Deposit</span>
                     </a>
-                    <a className="sidebar-link disabled">
-                        <span className="sidebar-icon">🔐</span>
-                        <span>Warden</span>
-                        <span className="sidebar-lock">🔒</span>
-                    </a>
-                    <a className="sidebar-link disabled">
+                    <a className={`sidebar-link ${activeTab === 'riwayat' ? 'active' : ''}`} onClick={() => setActiveTab('riwayat')}>
                         <span className="sidebar-icon">📋</span>
-                        <span>Laporan</span>
-                        <span className="sidebar-lock">🔒</span>
+                        <span>Riwayat</span>
                     </a>
 
                     <div className="sidebar-divider"></div>
                     <div className="sidebar-section-label">SISTEM</div>
-                    <a className="sidebar-link disabled">
-                        <span className="sidebar-icon">⚙️</span>
-                        <span>Pengaturan</span>
-                        <span className="sidebar-lock">🔒</span>
-                    </a>
                     <a className="sidebar-link sidebar-logout" onClick={handleLogout}>
                         <span className="sidebar-icon">⏏</span>
                         <span>Logout</span>
                     </a>
 
                     <div className="sidebar-footer">
-                        <span>v4.0</span>
+                        <span>v5.0</span>
                         <span>{user?.role?.toUpperCase()}</span>
                     </div>
                 </aside>
@@ -801,101 +793,31 @@ function App() {
                     </>
                 )}
 
-                {activeTab === 'payroll' && (
-                    <>
-                        <div className="section-header"><h2>SHU & PAYROLL NAPI</h2><span className="badge">DISTRIBUSI MINGGUAN</span></div>
-                        <div className="kantin-grid">
-                            <div className="panel"><div className="panel-title">💰 EKSEKUSI PEMBAYARAN</div><p style={{ fontSize: '0.85rem', marginBottom: '20px' }}>Tekan tombol di bawah untuk mentransfer upah kerja ke saldo seluruh narapidana.</p><button className="btn-primary" onClick={distributeSHU} style={{ background: 'var(--green-go)' }}>KIRIM GAJI SEKARANG</button></div>
-                            <div className="data-table-container">
-                                <table className="data-table">
-                                    <thead><tr><th>ID</th><th>Alias</th><th>Pekerjaan</th><th>Upah (Rp)</th></tr></thead>
-                                    <tbody>{(inmates || []).filter(x => (x?.wage || 0) > 0).map(i => <tr key={i?.id}><td>{i?.id}</td><td>{i?.alias}</td><td>{i?.job}</td><td style={{ color: 'var(--green-go)' }}>+ {formatRp(i?.wage)}</td></tr>)}</tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {activeTab === 'pinjaman' && (
-                    <>
-                        <div className="section-header"><h2>PENGAJUAN PINJAMAN KREDIT KOPERASI</h2></div>
-                        <div className="kantin-grid">
-                            <div className="panel">
-                                <div className="panel-title">💰 FORMULIR KREDIT PINJAMAN</div>
-                                <div className="form-group"><label>Pilih Narapidana (Pemohon)</label><select onChange={(e) => setSelectedInmateId(e.target.value)} value={selectedInmateId}><option value="">-- Pilih Napi --</option>{(inmates || []).map(i => <option key={i?.id} value={i?.id}>{i?.id} - {i?.alias} (Sisa Saldo: Rp{formatRp(i?.saldo)})</option>)}</select></div>
-                                <div className="form-group"><label>Nominal Pinjaman yang Diajukan (Rp)</label><input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} placeholder="Contoh: 500000" /></div>
-                                <button className="btn-primary" onClick={submitLoan}>Ajukan Pinjaman ke Warden</button>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* TAB KANTIN (DENGAN MIDTRANS SNAP) */}
                 {activeTab === 'kantin' && (
-                    <>
-                        <div className="section-header"><h2>KANTIN & RETAIL</h2><span className="badge">MIDTRANS GATEWAY AKTIF</span></div>
-                        <div className="kantin-grid">
-                            <div className="panel">
-                                <div className="panel-title" style={{ justifyContent: 'space-between' }}><span>PILIH NAPI & BARANG</span><button className="action-btn" onClick={() => setIsProdModalOpen(true)}>+ TAMBAH BARANG</button></div>
-                                <div className="form-group"><select onChange={(e) => setSelectedInmateId(e.target.value)} value={selectedInmateId}><option value="">-- Scan ID Napi --</option>{(inmates || []).map(i => <option key={i?.id} value={i?.id}>{i?.id} - {i?.alias} (Saldo: Rp{formatRp(i?.saldo)})</option>)}</select></div>
-                                <div className="data-table-container" style={{ height: '350px' }}>
-                                    <table className="data-table">
-                                        <thead><tr><th>Nama Barang</th><th>Harga</th><th>Aksi</th></tr></thead>
-                                        <tbody>
-                                            {(products || []).map(p => (
-                                                <tr key={p?.id}><td>{p?.name} <br /><span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>Sisa: {p?.stock || 0}</span></td><td>Rp {formatRp(p?.price)}</td><td><button className="action-btn" onClick={() => addToCart(p?.id)}>+ ADD</button></td></tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div className="panel">
-                                <div className="panel-title">KERANJANG BELANJA</div>
-                                <table className="data-table" style={{ marginBottom: '20px' }}>
-                                    <thead><tr><th>Item</th><th>Qty</th><th>Subtotal</th><th>Aksi</th></tr></thead>
-                                    <tbody>
-                                        {(cart || []).map(c => (
-                                            <tr key={c?.id}>
-                                                <td>{c?.name}</td><td>x{c?.qty}</td><td>Rp {formatRp((c?.price || 0) * (c?.qty || 0))}</td>
-                                                <td><button className="action-btn" onClick={() => removeFromCart(c?.id)} style={{ color: 'var(--rust)', borderColor: 'var(--rust)' }}>✕ BATAL</button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                <div style={{ borderTop: '1px solid #444', paddingTop: '10px', marginBottom: '20px' }}>
-                                    <h2 style={{ color: 'var(--orange)' }}>TOTAL: Rp {formatRp(grandTotal)}</h2>
-                                </div>
-                                <button className="btn-primary" onClick={triggerMidtransPayment} disabled={!cart || cart.length === 0} style={{ background: 'var(--green-go)' }}>💳 BAYAR VIA MIDTRANS</button>
-                            </div>
-                        </div>
-                    </>
+                    <Kantin inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} />
                 )}
 
-                {activeTab === 'warden' && (
-                    <>
-                        <div className="section-header"><h2>WARDEN APPROVAL</h2><span className="badge">OTORISASI SIPIR</span></div>
-                        <div className="data-table-container">
-                            <table className="data-table">
-                                <thead><tr><th>Tipe Req</th><th>ID Req</th><th>Pemohon</th><th>Detail</th><th>Aksi</th></tr></thead>
-                                <tbody>
-                                    {(transactions || []).filter(t => t?.status === 'QUEUE (PENDING)').map(t => (
-                                        <tr key={t?.id}>
-                                            <td><span className={`status-pill ${(t?.type || '') === 'LOAN' ? 'pill-transfer' : 'pill-active'}`}>{(t?.type || '') === 'LOAN' ? '💳 PINJAMAN' : '🛒 KANTIN'}</span></td>
-                                            <td>{t?.id}</td><td>{t?.inmateAlias}</td><td>Rp {formatRp(t?.total)}</td>
-                                            <td><button className="btn-approve" onClick={() => approveLoan(t)}>APPROVE</button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
+                {activeTab === 'telepon' && (
+                    <Telepon inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} />
+                )}
+
+                {activeTab === 'laundry' && (
+                    <Laundry inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} />
+                )}
+
+                {activeTab === 'deposit' && (
+                    <Deposit inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} />
+                )}
+
+                {activeTab === 'riwayat' && (
+                    <Riwayat inmates={inmates} />
                 )}
             </div>
                 </div>
             </div>
 
             <footer>
-                <div className="footer-left">SIPENJARA v4.0 &nbsp;|&nbsp; KEMENKUMHAM RI &nbsp;|&nbsp; {clock} WIB</div>
+                <div className="footer-left">SIPENJARA v5.0 &nbsp;|&nbsp; KEMENKUMHAM RI &nbsp;|&nbsp; E-WALLET SYSTEM &nbsp;|&nbsp; {clock} WIB</div>
                 <div className="footer-right"><a className="footer-link">Kebijakan Privasi</a><a className="footer-link">Kontak Admin</a></div>
             </footer>
 

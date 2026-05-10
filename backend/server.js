@@ -1,7 +1,6 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const midtransClient = require('midtrans-client');
 const path = require('path');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
@@ -33,27 +32,12 @@ if (SMTP_CONFIGURED) {
 }
 
 // =================================================================
-// 🔑 WARDEN WHITELIST — WAJIB: Hanya email di daftar ini yang bisa
-//    login sebagai Warden. Tambahkan email via env WARDEN_EMAILS
-//    atau langsung hardcode di bawah.
+// 🔑 WARDEN WHITELIST
 // =================================================================
 const WARDEN_EMAILS = [
-    // === HARDCODED WARDEN (tambah email di sini) ===
     'jamaldan390@gmail.com',
-
-    // === DARI ENVIRONMENT VARIABLE ===
     ...(process.env.WARDEN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 ];
-
-
-// =================================================================
-// 💳 KONFIGURASI MIDTRANS SANDBOX 
-// =================================================================
-let snap = new midtransClient.Snap({
-    isProduction: false,
-    serverKey: process.env.MIDTRANS_SERVER_KEY || '',
-    clientKey: process.env.MIDTRANS_CLIENT_KEY || ''
-});
 
 const db = new sqlite3.Database('./sipenjara.db', (err) => {
     if (err) console.error("Gagal koneksi ke SQLite:", err.message);
@@ -61,10 +45,9 @@ const db = new sqlite3.Database('./sipenjara.db', (err) => {
 });
 
 // =================================================================
-// 📋 BUAT TABEL GUARDS & OTP (jika belum ada)
+// 📋 BUAT TABEL (jika belum ada)
 // =================================================================
 db.serialize(() => {
-    // Tabel guard yang sudah terdaftar
     db.run(`CREATE TABLE IF NOT EXISTS guards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         google_id TEXT UNIQUE NOT NULL,
@@ -75,7 +58,6 @@ db.serialize(() => {
         registered_at TEXT DEFAULT (datetime('now','localtime'))
     )`);
 
-    // Tabel OTP untuk verifikasi pendaftaran
     db.run(`CREATE TABLE IF NOT EXISTS otp_codes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT NOT NULL,
@@ -87,20 +69,42 @@ db.serialize(() => {
         used INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now','localtime'))
     )`);
+
+    // Tabel transaksi untuk sistem pembayaran internal
+    db.run(`CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trx_id TEXT NOT NULL,
+        inmate_id TEXT NOT NULL,
+        jenis TEXT NOT NULL,
+        items TEXT,
+        total INTEGER NOT NULL,
+        saldo_sebelum INTEGER,
+        saldo_sesudah INTEGER,
+        status TEXT DEFAULT 'success',
+        detail TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+    )`);
+
+    // Tabel daily spending limit tracker
+    db.run(`CREATE TABLE IF NOT EXISTS daily_limits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inmate_id TEXT NOT NULL,
+        jenis TEXT NOT NULL,
+        amount INTEGER DEFAULT 0,
+        minutes_used INTEGER DEFAULT 0,
+        date TEXT NOT NULL,
+        UNIQUE(inmate_id, jenis, date)
+    )`);
 });
 
 // =================================================================
-// 🎲 HELPER: Generate OTP 6 digit
+// 🎲 HELPERS
 // =================================================================
 function generateOTP() {
     return crypto.randomInt(100000, 999999).toString();
 }
 
-// =================================================================
-// 📧 HELPER: Kirim email OTP (dengan fallback dev mode)
-// =================================================================
 async function sendOTPEmail(email, otp, name) {
-    // DEV MODE: Jika SMTP belum dikonfigurasi, log ke console saja
     if (!SMTP_CONFIGURED) {
         console.log('\n╔══════════════════════════════════════════════╗');
         console.log('║  📧 DEV MODE — SMTP BELUM DIKONFIGURASI      ║');
@@ -129,42 +133,58 @@ async function sendOTPEmail(email, otp, name) {
                         <span style="font-size: 40px; font-weight: bold; color: #f39c12; letter-spacing: 12px; font-family: monospace;">${otp}</span>
                     </div>
                     <p style="color: #5a6477; font-size: 12px; margin: 0;">⏰ Kode berlaku selama <strong>5 menit</strong></p>
-                    <p style="color: #5a6477; font-size: 12px; margin: 4px 0 0;">🚫 Jangan berikan kode ini kepada siapapun</p>
-                </div>
-                <div style="background: rgba(0,0,0,0.3); padding: 16px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06);">
-                    <p style="margin: 0; color: #5a6477; font-size: 11px; letter-spacing: 2px;">KEMENKUMHAM RI • NUSA KAMBANGAN SUPERMAX</p>
                 </div>
             </div>
         `
     };
-
     return transporter.sendMail(mailOptions);
 }
 
+// Helper: get today's date string
+function getTodayStr() {
+    return new Date().toISOString().split('T')[0];
+}
+
+// Helper: get daily usage
+function getDailyUsage(inmateId, jenis) {
+    return new Promise((resolve, reject) => {
+        db.get(
+            "SELECT * FROM daily_limits WHERE inmate_id = ? AND jenis = ? AND date = ?",
+            [inmateId, jenis, getTodayStr()],
+            (err, row) => {
+                if (err) reject(err);
+                else resolve(row || { amount: 0, minutes_used: 0 });
+            }
+        );
+    });
+}
+
+// Helper: update daily usage
+function updateDailyUsage(inmateId, jenis, addAmount, addMinutes = 0) {
+    const today = getTodayStr();
+    return new Promise((resolve, reject) => {
+        db.run(
+            `INSERT INTO daily_limits (inmate_id, jenis, amount, minutes_used, date)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(inmate_id, jenis, date)
+             DO UPDATE SET amount = amount + ?, minutes_used = minutes_used + ?`,
+            [inmateId, jenis, addAmount, addMinutes, today, addAmount, addMinutes],
+            (err) => { if (err) reject(err); else resolve(); }
+        );
+    });
+}
+
 // =================================================================
-// 🔐 ENDPOINT: LOGIN WARDEN (Google langsung)
+// 🔐 AUTH ENDPOINTS (unchanged)
 // =================================================================
 app.post('/api/auth/warden', async (req, res) => {
     const { credential } = req.body;
     try {
         const ticket = await oauthClient.verifyIdToken({ idToken: credential });
         const payload = ticket.getPayload();
-
-        const user = {
-            name: payload.name,
-            email: payload.email,
-            picture: payload.picture,
-            googleId: payload.sub,
-            role: 'warden'
-        };
-
-        // ❗ STRICT CHECK: Tolak jika email TIDAK ada di whitelist
+        const user = { name: payload.name, email: payload.email, picture: payload.picture, googleId: payload.sub, role: 'warden' };
         if (!WARDEN_EMAILS.includes(payload.email.toLowerCase())) {
-            console.log(`🔴 WARDEN DITOLAK: ${payload.email} — tidak ada di whitelist`);
-            return res.status(403).json({
-                success: false,
-                error: `Akses ditolak. Email ${payload.email} tidak terdaftar sebagai Warden.`
-            });
+            return res.status(403).json({ success: false, error: `Akses ditolak. Email ${payload.email} tidak terdaftar sebagai Warden.` });
         }
         console.log(`✅ Warden Login: ${user.name} (${user.email})`);
         res.json({ success: true, user });
@@ -174,210 +194,81 @@ app.post('/api/auth/warden', async (req, res) => {
     }
 });
 
-// =================================================================
-// 🔐 ENDPOINT: GUARD - Step 1: Google Auth + Kirim OTP
-// =================================================================
 app.post('/api/auth/guard/request-otp', async (req, res) => {
     const { credential } = req.body;
     try {
         const ticket = await oauthClient.verifyIdToken({ idToken: credential });
         const payload = ticket.getPayload();
-
-        // Cek apakah guard sudah terdaftar
         const existingGuard = await new Promise((resolve, reject) => {
-            db.get("SELECT * FROM guards WHERE google_id = ? AND status = 'active'", [payload.sub], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
+            db.get("SELECT * FROM guards WHERE google_id = ? AND status = 'active'", [payload.sub], (err, row) => { if (err) reject(err); else resolve(row); });
         });
 
-        if (existingGuard) {
-            // Guard sudah terdaftar, langsung kirim OTP untuk login
-            const otp = generateOTP();
-            const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-
-            // Hapus OTP lama untuk email ini
-            db.run("DELETE FROM otp_codes WHERE email = ?", [payload.email]);
-
-            // Simpan OTP baru
-            db.run(
-                "INSERT INTO otp_codes (email, code, google_id, name, picture, expires_at) VALUES (?,?,?,?,?,?)",
-                [payload.email, otp, payload.sub, payload.name, payload.picture, expiresAt]
-            );
-
-            // Kirim email OTP
-            try {
-                const result = await sendOTPEmail(payload.email, otp, payload.name);
-                console.log(`📧 OTP Login dikirim ke ${payload.email}`);
-                return res.json({
-                    success: true,
-                    step: 'otp_sent',
-                    isRegistered: true,
-                    email: payload.email,
-                    message: result?.devMode
-                        ? `[DEV MODE] OTP: ${otp} — Cek console server`
-                        : `OTP dikirim ke ${payload.email}`,
-                    ...(result?.devMode ? { devOtp: otp } : {})
-                });
-            } catch (emailErr) {
-                console.error("🔴 Gagal kirim email:", emailErr.message);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Gagal mengirim OTP ke email. Coba lagi nanti.'
-                });
-            }
-        }
-
-        // Guard belum terdaftar, kirim OTP untuk registrasi
         const otp = generateOTP();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-
         db.run("DELETE FROM otp_codes WHERE email = ?", [payload.email]);
-        db.run(
-            "INSERT INTO otp_codes (email, code, google_id, name, picture, expires_at) VALUES (?,?,?,?,?,?)",
-            [payload.email, otp, payload.sub, payload.name, payload.picture, expiresAt]
-        );
+        db.run("INSERT INTO otp_codes (email, code, google_id, name, picture, expires_at) VALUES (?,?,?,?,?,?)",
+            [payload.email, otp, payload.sub, payload.name, payload.picture, expiresAt]);
 
         try {
             const result = await sendOTPEmail(payload.email, otp, payload.name);
-            console.log(`📧 OTP Registrasi dikirim ke ${payload.email}`);
             res.json({
-                success: true,
-                step: 'otp_sent',
-                isRegistered: false,
-                email: payload.email,
-                message: result?.devMode
-                    ? `[DEV MODE] OTP: ${otp} — Cek console server`
-                    : `OTP registrasi dikirim ke ${payload.email}`,
+                success: true, step: 'otp_sent', isRegistered: !!existingGuard, email: payload.email,
+                message: result?.devMode ? `[DEV MODE] OTP: ${otp} — Cek console server` : `OTP dikirim ke ${payload.email}`,
                 ...(result?.devMode ? { devOtp: otp } : {})
             });
         } catch (emailErr) {
-            console.error("🔴 Gagal kirim email:", emailErr.message);
-            return res.status(500).json({
-                success: false,
-                error: 'Gagal mengirim OTP ke email. Coba lagi nanti.'
-            });
+            res.status(500).json({ success: false, error: 'Gagal mengirim OTP ke email.' });
         }
-
     } catch (error) {
-        console.error("🔴 Guard Auth Error:", error.message);
         res.status(401).json({ success: false, error: 'Token Google tidak valid' });
     }
 });
 
-// =================================================================
-// 🔐 ENDPOINT: GUARD - Step 2: Verifikasi OTP
-// =================================================================
 app.post('/api/auth/guard/verify-otp', async (req, res) => {
     const { email, otp } = req.body;
-
-    if (!email || !otp) {
-        return res.status(400).json({ success: false, error: 'Email dan OTP harus diisi' });
-    }
-
+    if (!email || !otp) return res.status(400).json({ success: false, error: 'Email dan OTP harus diisi' });
     try {
         const otpRecord = await new Promise((resolve, reject) => {
-            db.get(
-                "SELECT * FROM otp_codes WHERE email = ? AND code = ? AND used = 0 ORDER BY created_at DESC LIMIT 1",
-                [email, otp],
-                (err, row) => { if (err) reject(err); else resolve(row); }
-            );
+            db.get("SELECT * FROM otp_codes WHERE email = ? AND code = ? AND used = 0 ORDER BY created_at DESC LIMIT 1",
+                [email, otp], (err, row) => { if (err) reject(err); else resolve(row); });
         });
-
-        if (!otpRecord) {
-            return res.status(400).json({ success: false, error: 'Kode OTP salah atau sudah expired' });
-        }
-
-        // Cek expired
-        if (new Date(otpRecord.expires_at) < new Date()) {
-            return res.status(400).json({ success: false, error: 'Kode OTP sudah expired. Silakan minta ulang.' });
-        }
-
-        // Tandai OTP sudah digunakan
+        if (!otpRecord) return res.status(400).json({ success: false, error: 'Kode OTP salah atau sudah expired' });
+        if (new Date(otpRecord.expires_at) < new Date()) return res.status(400).json({ success: false, error: 'Kode OTP sudah expired.' });
         db.run("UPDATE otp_codes SET used = 1 WHERE id = ?", [otpRecord.id]);
-
-        // Cek apakah guard sudah terdaftar
         const existingGuard = await new Promise((resolve, reject) => {
-            db.get("SELECT * FROM guards WHERE google_id = ?", [otpRecord.google_id], (err, row) => {
-                if (err) reject(err); else resolve(row);
-            });
+            db.get("SELECT * FROM guards WHERE google_id = ?", [otpRecord.google_id], (err, row) => { if (err) reject(err); else resolve(row); });
         });
-
         if (!existingGuard) {
-            // Daftarkan guard baru
-            db.run(
-                "INSERT INTO guards (google_id, name, email, picture) VALUES (?,?,?,?)",
-                [otpRecord.google_id, otpRecord.name, otpRecord.email, otpRecord.picture]
-            );
-            console.log(`✅ Guard BARU terdaftar: ${otpRecord.name} (${otpRecord.email})`);
+            db.run("INSERT INTO guards (google_id, name, email, picture) VALUES (?,?,?,?)",
+                [otpRecord.google_id, otpRecord.name, otpRecord.email, otpRecord.picture]);
         }
-
-        const user = {
-            name: otpRecord.name,
-            email: otpRecord.email,
-            picture: otpRecord.picture,
-            googleId: otpRecord.google_id,
-            role: 'guard'
-        };
-
-        console.log(`✅ Guard Login: ${user.name} (${user.email})`);
+        const user = { name: otpRecord.name, email: otpRecord.email, picture: otpRecord.picture, googleId: otpRecord.google_id, role: 'guard' };
         res.json({ success: true, user });
-
     } catch (error) {
-        console.error("🔴 OTP Verify Error:", error.message);
         res.status(500).json({ success: false, error: 'Gagal verifikasi OTP' });
     }
 });
 
-// =================================================================
-// 🔐 ENDPOINT: Resend OTP
-// =================================================================
 app.post('/api/auth/guard/resend-otp', async (req, res) => {
     const { email } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ success: false, error: 'Email harus diisi' });
-    }
-
-    // Ambil data dari OTP terakhir
+    if (!email) return res.status(400).json({ success: false, error: 'Email harus diisi' });
     const lastOtp = await new Promise((resolve, reject) => {
-        db.get("SELECT * FROM otp_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1", [email], (err, row) => {
-            if (err) reject(err); else resolve(row);
-        });
+        db.get("SELECT * FROM otp_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1", [email], (err, row) => { if (err) reject(err); else resolve(row); });
     });
-
-    if (!lastOtp) {
-        return res.status(400).json({ success: false, error: 'Data tidak ditemukan. Ulangi dari awal.' });
-    }
-
+    if (!lastOtp) return res.status(400).json({ success: false, error: 'Data tidak ditemukan.' });
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-
     db.run("DELETE FROM otp_codes WHERE email = ?", [email]);
-    db.run(
-        "INSERT INTO otp_codes (email, code, google_id, name, picture, expires_at) VALUES (?,?,?,?,?,?)",
-        [email, otp, lastOtp.google_id, lastOtp.name, lastOtp.picture, expiresAt]
-    );
-
+    db.run("INSERT INTO otp_codes (email, code, google_id, name, picture, expires_at) VALUES (?,?,?,?,?,?)",
+        [email, otp, lastOtp.google_id, lastOtp.name, lastOtp.picture, expiresAt]);
     try {
         const result = await sendOTPEmail(email, otp, lastOtp.name);
-        console.log(`📧 OTP Resend ke ${email}`);
-        res.json({
-            success: true,
-            message: result?.devMode
-                ? `[DEV MODE] OTP Baru: ${otp} — Cek console server`
-                : `OTP baru dikirim ke ${email}`,
-            ...(result?.devMode ? { devOtp: otp } : {})
-        });
+        res.json({ success: true, message: result?.devMode ? `[DEV MODE] OTP Baru: ${otp}` : `OTP baru dikirim ke ${email}`, ...(result?.devMode ? { devOtp: otp } : {}) });
     } catch (emailErr) {
-        console.error("🔴 Gagal kirim email:", emailErr.message);
-        res.status(500).json({ success: false, error: 'Gagal mengirim OTP. Coba lagi nanti.' });
+        res.status(500).json({ success: false, error: 'Gagal mengirim OTP.' });
     }
 });
 
-// =================================================================
-// 📋 ENDPOINT: List guards (admin only)
-// =================================================================
 app.get('/api/guards', (req, res) => {
     db.all("SELECT id, name, email, status, registered_at FROM guards ORDER BY id DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -386,103 +277,203 @@ app.get('/api/guards', (req, res) => {
 });
 
 // =================================================================
-// 🗑 ENDPOINT: Deactivate guard
+// 📋 INMATES API
 // =================================================================
-app.delete('/api/guards/:id', (req, res) => {
-    db.run("UPDATE guards SET status = 'inactive' WHERE id = ?", [req.params.id], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: "Guard dinonaktifkan" });
-    });
+app.get('/api/inmates', (req, res) => db.all("SELECT * FROM inmates ORDER BY id DESC", [], (err, rows) => res.json(rows || [])));
+
+app.post('/api/inmates', (req, res) => {
+    const { id, alias, tier, crimeType, cell, points, saldo, age, gender, entryDate, exitDate, status, description } = req.body;
+    db.run(`INSERT INTO inmates (id, alias, tier, crimeType, cell, points, saldo, age, gender, entryDate, exitDate, job, wage, description)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [id, alias, tier, crimeType, cell, points, saldo || 0, age, gender, entryDate, exitDate, status || 'aktif', 0, description],
+        (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Berhasil" }));
 });
 
-// =================================================================
-// ✅ ENDPOINT: Reactivate guard
-// =================================================================
-app.post('/api/guards/:id/activate', (req, res) => {
-    db.run("UPDATE guards SET status = 'active' WHERE id = ?", [req.params.id], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: "Guard diaktifkan kembali" });
-    });
-});
+app.delete('/api/inmates/:id', (req, res) => db.run("DELETE FROM inmates WHERE id = ?", [req.params.id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Terhapus" })));
 
 // =================================================================
-// 🔐 ENDPOINT VERIFIKASI GOOGLE LOGIN (Legacy - backward compat)
+// 💰 E-WALLET: Deposit saldo (dari keluarga / admin)
 // =================================================================
-app.post('/api/auth/google', async (req, res) => {
-    const { credential } = req.body;
-    try {
-        const ticket = await oauthClient.verifyIdToken({
-            idToken: credential,
+app.post('/api/wallet/deposit', (req, res) => {
+    const { inmateId, amount } = req.body;
+    if (!inmateId || !amount || amount <= 0) return res.status(400).json({ error: 'Data tidak valid' });
+
+    db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (err, inmate) => {
+        if (err || !inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+        const saldoBefore = inmate.saldo || 0;
+        const saldoAfter = saldoBefore + amount;
+        db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, inmateId], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            const trxId = 'DEP-' + Math.floor(Math.random() * 90000 + 10000);
+            db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status) VALUES (?,?,?,?,?,?,?,?)",
+                [trxId, inmateId, 'deposit', 'Top-up Saldo E-Wallet', amount, saldoBefore, saldoAfter, 'success']);
+            res.json({ success: true, trxId, saldoBefore, saldoAfter });
         });
-        const payload = ticket.getPayload();
-
-        console.log(`🔑 Token audience: ${payload.aud}`);
-        console.log(`🔑 Expected client: ${FRONTEND_CLIENT_ID}`);
-
-        const user = {
-            name: payload.name,
-            email: payload.email,
-            picture: payload.picture,
-            googleId: payload.sub,
-        };
-        console.log(`✅ Login Google: ${user.name} (${user.email})`);
-        res.json({ success: true, user });
-    } catch (error) {
-        console.error("🔴 Google Auth Error:", error.message);
-        res.status(401).json({ success: false, error: 'Token tidak valid' });
-    }
+    });
 });
 
-app.post('/api/midtrans-token', async (req, res) => {
-    const { inmateId, total, inmateAlias } = req.body;
-    const orderId = 'TRX-' + Math.floor(Math.random() * 90000 + 10000);
-
-    let parameter = {
-        "transaction_details": {
-            "order_id": orderId,
-            "gross_amount": Math.round(total)
-        },
-        "customer_details": {
-            "first_name": inmateAlias || "Tahanan",
-            "last_name": inmateId,
-            "email": "lapas@supermax.com"
-        }
-    };
+// =================================================================
+// 🛒 KANTIN: Order
+// =================================================================
+app.post('/api/kantin/order', async (req, res) => {
+    const { inmateId, items } = req.body;
+    // items = [{ name, price, qty }]
+    if (!inmateId || !items || items.length === 0) return res.status(400).json({ error: 'Data tidak valid' });
 
     try {
-        const transaction = await snap.createTransaction(parameter);
-        res.json({ token: transaction.token, orderId: orderId });
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const total = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+        const saldoBefore = inmate.saldo || 0;
+
+        // Check daily limit
+        const usage = await getDailyUsage(inmateId, 'kantin');
+        if ((usage.amount + total) > 200000) {
+            return res.status(400).json({ error: `Limit kantin harian terlampaui. Terpakai: Rp ${usage.amount.toLocaleString()}, Limit: Rp 200.000` });
+        }
+
+        if (saldoBefore < total) {
+            return res.status(400).json({ error: `Saldo tidak cukup. Saldo: Rp ${saldoBefore.toLocaleString()}, Kebutuhan: Rp ${total.toLocaleString()}` });
+        }
+
+        const saldoAfter = saldoBefore - total;
+        const trxId = 'KANT-' + Math.floor(Math.random() * 90000 + 10000);
+
+        db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, inmateId]);
+        await updateDailyUsage(inmateId, 'kantin', total);
+        db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status) VALUES (?,?,?,?,?,?,?,?)",
+            [trxId, inmateId, 'kantin', JSON.stringify(items), total, saldoBefore, saldoAfter, 'success']);
+
+        res.json({ success: true, trxId, total, saldoBefore, saldoAfter });
     } catch (e) {
-        console.error("🔴 ERROR DARI MIDTRANS:", e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
-// API STANDAR
-app.get('/api/inmates', (req, res) => db.all("SELECT * FROM inmates ORDER BY id DESC", [], (err, rows) => res.json(rows)));
-app.post('/api/inmates', (req, res) => {
-    const { id, alias, tier, crimeType, cell, points, saldo, age, gender, entryDate, exitDate, job, wage, description } = req.body;
-    db.run(`INSERT INTO inmates (id, alias, tier, crimeType, cell, points, saldo, age, gender, entryDate, exitDate, job, wage, description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [id, alias, tier, crimeType, cell, points, saldo, age, gender, entryDate, exitDate, job, wage, description], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Berhasil" }));
+// =================================================================
+// 📞 TELEPON: Book slot
+// =================================================================
+app.post('/api/telepon/book', async (req, res) => {
+    const { inmateId, tipe, durasi } = req.body;
+    if (!inmateId || !tipe || !durasi) return res.status(400).json({ error: 'Data tidak valid' });
+
+    // Price map
+    const prices = {
+        'lokal_3': { price: 10000, mins: 3 },
+        'lokal_5': { price: 15000, mins: 5 },
+        'lokal_10': { price: 25000, mins: 10 },
+        'intl_per_min': { price: 20000, mins: durasi },
+        'video_5': { price: 30000, mins: 5 },
+    };
+    const sel = prices[tipe];
+    if (!sel) return res.status(400).json({ error: 'Tipe telepon tidak valid' });
+
+    let totalPrice = sel.price;
+    if (tipe === 'intl_per_min') totalPrice = sel.price * durasi;
+    const totalMins = sel.mins;
+
+    try {
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const saldoBefore = inmate.saldo || 0;
+
+        // Check daily limit (30 min/day)
+        const usage = await getDailyUsage(inmateId, 'telepon');
+        if ((usage.minutes_used + totalMins) > 30) {
+            return res.status(400).json({ error: `Limit telepon harian terlampaui. Terpakai: ${usage.minutes_used} menit, Limit: 30 menit/hari` });
+        }
+
+        if (saldoBefore < totalPrice) {
+            return res.status(400).json({ error: `Saldo tidak cukup. Saldo: Rp ${saldoBefore.toLocaleString()}, Kebutuhan: Rp ${totalPrice.toLocaleString()}` });
+        }
+
+        const saldoAfter = saldoBefore - totalPrice;
+        const trxId = 'TEL-' + Math.floor(Math.random() * 90000 + 10000);
+
+        db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, inmateId]);
+        await updateDailyUsage(inmateId, 'telepon', totalPrice, totalMins);
+        db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+            [trxId, inmateId, 'telepon', tipe, totalPrice, saldoBefore, saldoAfter, 'success', JSON.stringify({ durasi: totalMins })]);
+
+        res.json({ success: true, trxId, totalPrice, durasi: totalMins, saldoBefore, saldoAfter });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
-app.delete('/api/inmates/:id', (req, res) => db.run("DELETE FROM inmates WHERE id = ?", [req.params.id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Terhapus" })));
-app.post('/api/payroll', (req, res) => db.run("UPDATE inmates SET saldo = saldo + wage WHERE wage > 0", [], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Gaji Dibagikan" })));
-app.get('/api/products', (req, res) => db.all("SELECT * FROM products ORDER BY id DESC", [], (err, rows) => res.json(rows)));
-app.post('/api/products', (req, res) => {
-    const { id, name, price, type, stock } = req.body;
-    db.run(`INSERT INTO products VALUES (?,?,?,?,?)`, [id, name, price, type, stock], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Produk ditambah" }));
+
+// =================================================================
+// 👕 LAUNDRY: Submit
+// =================================================================
+app.post('/api/laundry/submit', async (req, res) => {
+    const { inmateId, tipe, kg, express: isExpress } = req.body;
+    if (!inmateId || !tipe || !kg) return res.status(400).json({ error: 'Data tidak valid' });
+
+    const priceMap = { 'cuci': 8000, 'strika': 10000, 'cuci_strika': 12000 };
+    const basePrice = priceMap[tipe];
+    if (!basePrice) return res.status(400).json({ error: 'Tipe laundry tidak valid' });
+
+    let totalPrice = basePrice * kg;
+    if (isExpress) totalPrice += 5000;
+
+    try {
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const saldoBefore = inmate.saldo || 0;
+        if (saldoBefore < totalPrice) {
+            return res.status(400).json({ error: `Saldo tidak cukup. Saldo: Rp ${saldoBefore.toLocaleString()}, Kebutuhan: Rp ${totalPrice.toLocaleString()}` });
+        }
+
+        const saldoAfter = saldoBefore - totalPrice;
+        const trxId = 'LAUN-' + Math.floor(Math.random() * 90000 + 10000);
+        const pickupDays = isExpress ? 1 : 3;
+
+        db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, inmateId]);
+        db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+            [trxId, inmateId, 'laundry', tipe, totalPrice, saldoBefore, saldoAfter, 'success', JSON.stringify({ kg, express: isExpress, pickupDays })]);
+
+        res.json({ success: true, trxId, totalPrice, kg, pickupDays, saldoBefore, saldoAfter });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
-app.post('/api/checkout', (req, res) => {
-    const { inmateId, total, cart } = req.body;
-    db.run("UPDATE inmates SET saldo = saldo - ? WHERE id = ?", [total, inmateId], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        cart.forEach(item => db.run("UPDATE products SET stock = stock - ? WHERE id = ?", [item.qty, item.id]));
-        res.json({ message: "Sukses" });
+
+// =================================================================
+// 📊 TRANSACTION HISTORY
+// =================================================================
+app.get('/api/transactions', (req, res) => {
+    const { inmateId } = req.query;
+    let sql = "SELECT * FROM transactions ORDER BY created_at DESC LIMIT 100";
+    let params = [];
+    if (inmateId) {
+        sql = "SELECT * FROM transactions WHERE inmate_id = ? ORDER BY created_at DESC LIMIT 50";
+        params = [inmateId];
+    }
+    db.all(sql, params, (err, rows) => res.json(rows || []));
+});
+
+// =================================================================
+// 💰 CHECK BALANCE
+// =================================================================
+app.get('/api/wallet/balance/:inmateId', (req, res) => {
+    db.get("SELECT id, alias, saldo, cell, tier FROM inmates WHERE id = ?", [req.params.inmateId], (err, row) => {
+        if (err || !row) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+        res.json(row);
     });
 });
+
+// Legacy compat
 app.post('/api/inmates/update-saldo', (req, res) => {
     const { id, amount } = req.body;
     db.run("UPDATE inmates SET saldo = saldo + ? WHERE id = ?", [amount, id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Sukses" }));
+});
+
+app.get('/api/products', (req, res) => db.all("SELECT * FROM products ORDER BY id DESC", [], (err, rows) => res.json(rows || [])));
+app.post('/api/products', (req, res) => {
+    const { id, name, price, type, stock } = req.body;
+    db.run(`INSERT INTO products VALUES (?,?,?,?,?)`, [id, name, price, type, stock], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Produk ditambah" }));
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -490,7 +481,6 @@ app.use((req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`🚀 Server Gabungan berjalan di port ${PORT}`);
-    console.log(`🔐 Warden Auth: Google Cloud Console (OAuth test users)`);
+    console.log(`🚀 Server berjalan di port ${PORT}`);
     console.log(`📧 SMTP Status: ${SMTP_CONFIGURED ? '✅ Aktif' : '⚠️ DEV MODE (OTP via console)'}`);
 });
