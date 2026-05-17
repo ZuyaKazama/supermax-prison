@@ -58,21 +58,25 @@ export default function DataNapi({ inmates, onNotif, onRefresh, user }) {
   };
 
   const saveEdit = async () => {
+    if (!editData.alias) return alert('Alias tidak boleh kosong!');
     try {
       const res = await fetch(`/api/inmates/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editData)
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         onNotif(`✏️ Data ${editData.alias} berhasil diupdate`, 'green');
         onRefresh();
         setEditId(null);
         setEditData({});
       } else {
-        alert('Gagal update data!');
+        alert(`Gagal update: ${data.error || 'Unknown error'}`);
       }
-    } catch (err) { alert('Gagal koneksi server!'); }
+    } catch (err) {
+      alert('Gagal koneksi server!');
+    }
   };
 
   const handleAdd = async () => {

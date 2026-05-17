@@ -291,6 +291,21 @@ app.post('/api/inmates', (req, res) => {
 
 app.delete('/api/inmates/:id', (req, res) => db.run("DELETE FROM inmates WHERE id = ?", [req.params.id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ message: "Terhapus" })));
 
+app.put('/api/inmates/:id', (req, res) => {
+    const { alias, crimeType, cell, age, gender, exitDate, tier, points } = req.body;
+    if (!alias) return res.status(400).json({ error: 'Alias tidak boleh kosong' });
+    db.run(
+        `UPDATE inmates SET alias=?, crimeType=?, cell=?, age=?, gender=?, exitDate=?, tier=?, points=? WHERE id=?`,
+        [alias, crimeType, cell, age, gender, exitDate, tier, points, req.params.id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            if (this.changes === 0) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+            res.json({ success: true, message: 'Data berhasil diupdate' });
+        }
+    );
+});
+
+
 // =================================================================
 // 💰 E-WALLET: Deposit saldo (dari keluarga / admin)
 // =================================================================
