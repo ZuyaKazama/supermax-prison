@@ -132,7 +132,7 @@ export default function DataNapi({ inmates, onNotif, onRefresh, user }) {
             <div className="form-row"><div className="form-group"><label>Jenis Kelamin</label><select value={newNapi.gender} onChange={e => setNewNapi({...newNapi, gender: e.target.value})}><option value="L">Laki-Laki</option><option value="P">Perempuan</option></select></div><div className="form-group"><label>Jenis Kejahatan</label><select value={newNapi.crimeType} onChange={e => setNewNapi({...newNapi, crimeType: e.target.value})}><option>Korupsi Kelas Kakap</option><option>Sindikat Narkoba</option><option>Kejahatan Siber</option><option>Pembunuhan Berencana</option></select></div></div>
             <div className="form-row"><div className="form-group"><label>Level Bahaya</label><select value={newNapi.threat} onChange={e => setNewNapi({...newNapi, threat: e.target.value})}><option>🔴 EXTREME</option><option>🟠 HIGH</option><option>🟡 MEDIUM</option><option>🟢 LOW</option></select></div><div className="form-group"><label>Blok Sel</label><select value={newNapi.cell} onChange={e => setNewNapi({...newNapi, cell: e.target.value})}><option>BLOK-A (Max)</option><option>BLOK-B (Reguler)</option><option>BLOK-S (Isolasi)</option></select></div></div>
             <div className="form-row"><div className="form-group"><label>Tipe Hukuman</label><select value={newNapi.sentenceType} onChange={e => setNewNapi({...newNapi, sentenceType: e.target.value})}><option value="Angka">Durasi Waktu (Tahun)</option><option value="Seumur Hidup">Seumur Hidup</option><option value="Mati">Hukuman Mati</option></select></div>{newNapi.sentenceType === 'Angka' ? (<div className="form-group"><label>Lama (Tahun)</label><input type="number" value={newNapi.sentenceYears} onChange={e => setNewNapi({...newNapi, sentenceYears: e.target.value})} placeholder="Misal: 27" /></div>) : (<div className="form-group"><label>Lama (Tahun)</label><input type="text" disabled value="KUNCI SISTEM" style={{ backgroundColor: '#222' }} /></div>)}</div>
-            <div className="form-row"><div className="form-group"><label>Pekerjaan</label><select value={newNapi.job} onChange={e => setNewNapi({...newNapi, job: e.target.value})}><option value="Tidak Ada">Tidak Ada (Rp 0)</option><option value="Tukang Sapu">Tukang Sapu (Rp 15.000)</option><option value="Pekerja Pabrik">Pekerja Pabrik (Rp 25.000)</option><option value="Admin Perpus">Admin Perpus (Rp 30.000)</option><option value="Koki Dapur">Koki Dapur (Rp 45.000)</option></select></div><div className="form-group"><label>Deskripsi</label><input type="text" value={newNapi.description} onChange={e => setNewNapi({...newNapi, description: e.target.value})} placeholder="Catatan kejahatan..." /></div></div>
+            <div className="form-group"><label>Deskripsi</label><input type="text" value={newNapi.description} onChange={e => setNewNapi({...newNapi, description: e.target.value})} placeholder="Catatan kejahatan..." /></div>
             <button className="btn-primary" onClick={handleAdd}>⛓️ SIMPAN KE DATABASE</button>
           </div>
         </div>
@@ -191,9 +191,7 @@ export default function DataNapi({ inmates, onNotif, onRefresh, user }) {
                 <th className="crud-th">BLOK SEL</th>
                 <th className="crud-th">UMUR</th>
                 <th className="crud-th">JK</th>
-                <th className="crud-th">PEKERJAAN</th>
-                <th className="crud-th">GAJI</th>
-                <th className="crud-th">SALDO</th>
+
                 <th className="crud-th">HUKUMAN</th>
                 <th className="crud-th">TANGGAL MASUK</th>
                 <th className="crud-th">LEVEL BAHAYA</th>
@@ -202,7 +200,7 @@ export default function DataNapi({ inmates, onNotif, onRefresh, user }) {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan="15" className="crud-empty">Tidak ada data narapidana ditemukan</td></tr>
+                <tr><td colSpan="12" className="crud-empty">Tidak ada data narapidana ditemukan</td></tr>
               ) : filtered.map((inmate, idx) => (
                 <tr key={inmate.id} className="crud-tr">
                   <td className="crud-td crud-td-center">{idx + 1}</td>
@@ -251,15 +249,7 @@ export default function DataNapi({ inmates, onNotif, onRefresh, user }) {
                   </td>
                   <td className="crud-td crud-td-center">{inmate.age}</td>
                   <td className="crud-td crud-td-center">{inmate.gender === 'L' ? 'Laki-laki' : 'Perempuan'}</td>
-                  <td className="crud-td">
-                    {editId === inmate.id ? (
-                      <select className="crud-inline-input" value={editData.job || ''} onChange={e => setEditData({...editData, job: e.target.value})}>
-                        <option value="Tidak Ada">Tidak Ada</option><option value="Tukang Sapu">Tukang Sapu</option><option value="Pekerja Pabrik">Pekerja Pabrik</option><option value="Admin Perpus">Admin Perpus</option><option value="Koki Dapur">Koki Dapur</option>
-                      </select>
-                    ) : inmate.job}
-                  </td>
-                  <td className="crud-td">Rp {formatRp(inmate.wage)}</td>
-                  <td className="crud-td crud-td-saldo">Rp {formatRp(inmate.saldo)}</td>
+
                   <td className="crud-td">{inmate.exitDate}</td>
                   <td className="crud-td crud-td-center">{inmate.entryDate}</td>
                   <td className="crud-td crud-td-center">
