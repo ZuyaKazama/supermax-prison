@@ -5,6 +5,7 @@ import Telepon from './components/Telepon';
 import Laundry from './components/Laundry';
 import Deposit from './components/Deposit';
 import Riwayat from './components/Riwayat';
+import DataNapi from './components/DataNapi';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -643,6 +644,10 @@ function App() {
                         <span className="sidebar-icon">📊</span>
                         <span>Dashboard</span>
                     </a>
+                    <a className={`sidebar-link ${activeTab === 'datanapi' ? 'active' : ''}`} onClick={() => setActiveTab('datanapi')}>
+                        <span className="sidebar-icon">📋</span>
+                        <span>Data Napi</span>
+                    </a>
                     <a className={`sidebar-link ${activeTab === 'kantin' ? 'active' : ''}`} onClick={() => setActiveTab('kantin')}>
                         <span className="sidebar-icon">🛒</span>
                         <span>Kantin</span>
@@ -811,6 +816,10 @@ function App() {
 
                 {activeTab === 'riwayat' && (
                     <Riwayat inmates={inmates} />
+                )}
+
+                {activeTab === 'datanapi' && (
+                    <DataNapi inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
                 )}
             </div>
                 </div>
