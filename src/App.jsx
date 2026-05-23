@@ -325,7 +325,7 @@ function App() {
         if (!isLoggedIn) return;
         fetchData();
         const script = document.createElement('script');
-        script.src = 'https://app.midtrans.com/snap/snap.js';
+        script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
         script.setAttribute('data-client-key', 'Mid-client-YAwDc1cL-NWUpMAY');
         script.async = true;
         document.body.appendChild(script);

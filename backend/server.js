@@ -14,12 +14,10 @@ app.use(express.json());
 // =================================================================
 // 💳 KONFIGURASI MIDTRANS
 // =================================================================
-// Trik memecah Server Key agar GitHub tidak memblokir saat di-push
-const p1 = 'Mid-server-HlZvq3vfc';
-const p2 = 'spFWo3TpSrvQ0ZH';
-const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || (p1 + p2);
-const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-YAwDc1cL-NWUpMAY';
-const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION !== 'false'; // Default to true since keys are production
+const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || '';
+const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || '';
+const isProdKey = !MIDTRANS_SERVER_KEY.startsWith('SB-');
+const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === 'true' || isProdKey;
 
 const snap = new midtransClient.Snap({
     isProduction: MIDTRANS_IS_PRODUCTION,
