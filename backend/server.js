@@ -5,10 +5,24 @@ const path = require('path');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const midtransClient = require('midtrans-client');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// =================================================================
+// 💳 KONFIGURASI MIDTRANS
+// =================================================================
+const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'SB-Mid-server-YAwDc1cL-NWUpMAY';
+const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-YAwDc1cL-NWUpMAY';
+const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+
+const snap = new midtransClient.Snap({
+    isProduction: MIDTRANS_IS_PRODUCTION,
+    serverKey: MIDTRANS_SERVER_KEY,
+    clientKey: MIDTRANS_CLIENT_KEY,
+});
 
 // =================================================================
 // 🔐 KONFIGURASI GOOGLE OAUTH
@@ -328,7 +342,7 @@ app.post('/api/wallet/deposit', (req, res) => {
 });
 
 // =================================================================
-// 🛒 KANTIN: Order
+// 🛒 KANTIN: Order (E-Wallet internal — tetap bisa dipakai)
 // =================================================================
 app.post('/api/kantin/order', async (req, res) => {
     const { inmateId, items } = req.body;
@@ -362,6 +376,226 @@ app.post('/api/kantin/order', async (req, res) => {
 
         res.json({ success: true, trxId, total, saldoBefore, saldoAfter });
     } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// =================================================================
+// 💳 MIDTRANS: Generate Snap Token (Kantin)
+// =================================================================
+app.post('/api/midtrans/kantin-token', async (req, res) => {
+    const { inmateId, items } = req.body;
+    if (!inmateId || !items || items.length === 0) return res.status(400).json({ error: 'Data tidak valid' });
+
+    try {
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const total = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+
+        // Check daily limit
+        const usage = await getDailyUsage(inmateId, 'kantin');
+        if ((usage.amount + total) > 200000) {
+            return res.status(400).json({ error: `Limit kantin harian terlampaui. Terpakai: Rp ${usage.amount.toLocaleString()}, Limit: Rp 200.000` });
+        }
+
+        const orderId = 'KANT-MT-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+        const parameter = {
+            transaction_details: {
+                order_id: orderId,
+                gross_amount: total,
+            },
+            item_details: items.map(i => ({
+                id: i.name.replace(/\s/g, '_').toLowerCase(),
+                price: i.price,
+                quantity: i.qty,
+                name: i.name.substring(0, 50),
+            })),
+            customer_details: {
+                first_name: inmate.alias || 'Napi',
+                email: `${inmateId.toLowerCase()}@sipenjara.internal`,
+                notes: `Napi ID: ${inmateId}`,
+            },
+            callbacks: {
+                finish: '/api/midtrans/finish',
+            },
+        };
+
+        const snapResponse = await snap.createTransaction(parameter);
+
+        // Simpan transaksi dengan status pending
+        db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+            [orderId, inmateId, 'kantin', JSON.stringify(items), total, inmate.saldo || 0, inmate.saldo || 0, 'pending_payment', JSON.stringify({ payment_method: 'midtrans', snap_token: snapResponse.token })]);
+
+        console.log(`💳 Midtrans Kantin Token: ${orderId} | Total: Rp ${total.toLocaleString()} | Napi: ${inmate.alias}`);
+        res.json({ success: true, token: snapResponse.token, orderId, total });
+    } catch (e) {
+        console.error('❌ Midtrans Token Error:', e.message);
+        res.status(500).json({ error: 'Gagal membuat token pembayaran: ' + e.message });
+    }
+});
+
+// =================================================================
+// 💳 MIDTRANS: Generate Snap Token (Deposit E-Wallet)
+// =================================================================
+app.post('/api/midtrans/deposit-token', async (req, res) => {
+    const { inmateId, amount } = req.body;
+    if (!inmateId || !amount || amount <= 0) return res.status(400).json({ error: 'Data tidak valid' });
+
+    try {
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [inmateId], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const orderId = 'DEP-MT-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+        const parameter = {
+            transaction_details: {
+                order_id: orderId,
+                gross_amount: amount,
+            },
+            item_details: [{
+                id: 'deposit_ewallet',
+                price: amount,
+                quantity: 1,
+                name: `Deposit E-Wallet ${inmate.alias}`,
+            }],
+            customer_details: {
+                first_name: 'Keluarga',
+                last_name: inmate.alias || 'Napi',
+                email: `family-${inmateId.toLowerCase()}@sipenjara.internal`,
+                notes: `Deposit untuk Napi: ${inmateId} - ${inmate.alias}`,
+            },
+            callbacks: {
+                finish: '/api/midtrans/finish',
+            },
+        };
+
+        const snapResponse = await snap.createTransaction(parameter);
+
+        // Simpan transaksi pending
+        db.run("INSERT INTO transactions (trx_id, inmate_id, jenis, items, total, saldo_sebelum, saldo_sesudah, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+            [orderId, inmateId, 'deposit', `Deposit via Midtrans`, amount, inmate.saldo || 0, inmate.saldo || 0, 'pending_payment', JSON.stringify({ payment_method: 'midtrans', snap_token: snapResponse.token })]);
+
+        console.log(`💳 Midtrans Deposit Token: ${orderId} | Amount: Rp ${amount.toLocaleString()} | Napi: ${inmate.alias}`);
+        res.json({ success: true, token: snapResponse.token, orderId, amount });
+    } catch (e) {
+        console.error('❌ Midtrans Deposit Token Error:', e.message);
+        res.status(500).json({ error: 'Gagal membuat token pembayaran: ' + e.message });
+    }
+});
+
+// =================================================================
+// 💳 MIDTRANS: Confirm Payment (setelah Snap popup sukses)
+// =================================================================
+app.post('/api/midtrans/confirm', async (req, res) => {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ error: 'Order ID tidak valid' });
+
+    try {
+        // Cari transaksi pending
+        const trx = await new Promise((r, j) => db.get("SELECT * FROM transactions WHERE trx_id = ? AND status = 'pending_payment'", [orderId], (e, row) => e ? j(e) : r(row)));
+        if (!trx) return res.status(404).json({ error: 'Transaksi tidak ditemukan atau sudah diproses' });
+
+        const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [trx.inmate_id], (e, row) => e ? j(e) : r(row)));
+        if (!inmate) return res.status(404).json({ error: 'Napi tidak ditemukan' });
+
+        const saldoBefore = inmate.saldo || 0;
+
+        if (trx.jenis === 'deposit') {
+            // Deposit: tambah saldo
+            const saldoAfter = saldoBefore + trx.total;
+            db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, trx.inmate_id]);
+            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ? WHERE trx_id = ?",
+                [saldoBefore, saldoAfter, orderId]);
+            console.log(`✅ Deposit Midtrans BERHASIL: ${orderId} | +Rp ${trx.total.toLocaleString()} → ${inmate.alias}`);
+            res.json({ success: true, trxId: orderId, saldoBefore, saldoAfter, type: 'deposit' });
+        } else if (trx.jenis === 'kantin') {
+            // Kantin: tidak potong saldo (sudah dibayar via Midtrans)
+            await updateDailyUsage(trx.inmate_id, 'kantin', trx.total);
+            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ?, detail = ? WHERE trx_id = ?",
+                [saldoBefore, saldoBefore, JSON.stringify({ payment_method: 'midtrans', paid: true }), orderId]);
+            console.log(`✅ Kantin Midtrans BERHASIL: ${orderId} | Rp ${trx.total.toLocaleString()} | ${inmate.alias}`);
+            res.json({ success: true, trxId: orderId, total: trx.total, saldoBefore, saldoAfter: saldoBefore, type: 'kantin' });
+        } else {
+            res.status(400).json({ error: 'Tipe transaksi tidak dikenali' });
+        }
+    } catch (e) {
+        console.error('❌ Midtrans Confirm Error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// =================================================================
+// 💳 MIDTRANS: Webhook Notification (dari server Midtrans)
+// =================================================================
+app.post('/api/midtrans/notification', async (req, res) => {
+    try {
+        const notification = await snap.transaction.notification(req.body);
+        const orderId = notification.order_id;
+        const transactionStatus = notification.transaction_status;
+        const fraudStatus = notification.fraud_status;
+
+        console.log(`📩 Midtrans Notification: ${orderId} | Status: ${transactionStatus} | Fraud: ${fraudStatus}`);
+
+        if (transactionStatus === 'capture' || transactionStatus === 'settlement') {
+            if (fraudStatus === 'accept' || !fraudStatus) {
+                // Proses pembayaran berhasil
+                const trx = await new Promise((r, j) => db.get("SELECT * FROM transactions WHERE trx_id = ? AND status = 'pending_payment'", [orderId], (e, row) => e ? j(e) : r(row)));
+                if (trx) {
+                    const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [trx.inmate_id], (e, row) => e ? j(e) : r(row)));
+                    if (inmate) {
+                        const saldoBefore = inmate.saldo || 0;
+                        if (trx.jenis === 'deposit') {
+                            const saldoAfter = saldoBefore + trx.total;
+                            db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, trx.inmate_id]);
+                            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ? WHERE trx_id = ?",
+                                [saldoBefore, saldoAfter, orderId]);
+                        } else if (trx.jenis === 'kantin') {
+                            await updateDailyUsage(trx.inmate_id, 'kantin', trx.total);
+                            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ? WHERE trx_id = ?",
+                                [saldoBefore, saldoBefore, orderId]);
+                        }
+                    }
+                }
+            }
+        } else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
+            db.run("UPDATE transactions SET status = 'failed' WHERE trx_id = ?", [orderId]);
+        }
+
+        res.status(200).json({ status: 'ok' });
+    } catch (e) {
+        console.error('❌ Midtrans Notification Error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Legacy compatibility: /api/midtrans-token (used by old frontend code)
+app.post('/api/midtrans-token', async (req, res) => {
+    const { inmateId, inmateAlias, total, cart } = req.body;
+    if (!inmateId || !total) return res.status(400).json({ error: 'Data tidak valid' });
+
+    try {
+        const orderId = 'TRX-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        const parameter = {
+            transaction_details: { order_id: orderId, gross_amount: Math.round(total) },
+            customer_details: {
+                first_name: inmateAlias || 'Napi',
+                email: `${inmateId.toLowerCase()}@sipenjara.internal`,
+            },
+        };
+        if (cart && cart.length > 0) {
+            parameter.item_details = cart.map(i => ({
+                id: (i.id || i.name || 'item').toString().substring(0, 50),
+                price: Math.round(i.price || 0),
+                quantity: i.qty || 1,
+                name: (i.name || 'Item').substring(0, 50),
+            }));
+        }
+        const snapResponse = await snap.createTransaction(parameter);
+        res.json({ token: snapResponse.token, orderId });
+    } catch (e) {
+        console.error('❌ Midtrans Legacy Token Error:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
@@ -498,4 +732,5 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Server berjalan di port ${PORT}`);
     console.log(`📧 SMTP Status: ${SMTP_CONFIGURED ? '✅ Aktif' : '⚠️ DEV MODE (OTP via console)'}`);
+    console.log(`💳 Midtrans: ${MIDTRANS_IS_PRODUCTION ? '🔴 PRODUCTION' : '🟡 SANDBOX'} | Server Key: ${MIDTRANS_SERVER_KEY.substring(0, 15)}...`);
 });

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Kantin from './components/Kantin';
 import Telepon from './components/Telepon';
-import Laundry from './components/Laundry';
 import Deposit from './components/Deposit';
 import Riwayat from './components/Riwayat';
 import DataNapi from './components/DataNapi';
@@ -137,12 +136,8 @@ function App() {
     const [prodStock, setProdStock] = useState('');
     const [prodType, setProdType] = useState('general');
 
-    // --- KANTIN STATE ---
-    const [selectedInmateId, setSelectedInmateId] = useState('');
-    const [cart, setCart] = useState([]);
+    // --- KANTIN STATE (dihapus) ---
 
-    // --- KEUANGAN STATE ---
-    const [loanAmount, setLoanAmount] = useState(''); // ← FIX: state yang sebelumnya hilang
 
     // ============================================================
     // HELPERS
@@ -819,7 +814,6 @@ function App() {
         { id: 'datanapi', icon: '📋', label: 'Data Napi', section: 'main', access: 'all' },
         { id: 'kantin', icon: '🛒', label: 'Kantin', section: 'main', access: 'all' },
         { id: 'telepon', icon: '📞', label: 'Telepon', section: 'main', access: 'all' },
-        { id: 'laundry', icon: '👕', label: 'Laundry', section: 'main', access: 'all' },
         { id: 'deposit', icon: '💰', label: 'Deposit', section: 'keuangan', access: 'all' },
         { id: 'riwayat', icon: '📋', label: 'Riwayat', section: 'keuangan', access: 'all' },
     ];
@@ -1308,9 +1302,6 @@ function App() {
                         )}
                         {activeTab === 'telepon' && (
                             <Telepon inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
-                        )}
-                        {activeTab === 'laundry' && (
-                            <Laundry inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
                         )}
                         {activeTab === 'deposit' && (
                             <Deposit inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
