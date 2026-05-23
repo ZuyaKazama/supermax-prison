@@ -14,8 +14,8 @@ app.use(express.json());
 // =================================================================
 // 💳 KONFIGURASI MIDTRANS
 // =================================================================
-const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'SB-Mid-server-YAwDc1cL-NWUpMAY';
-const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-YAwDc1cL-NWUpMAY';
+const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'SB-Mid-server-HlZvq3vfcspFWo3TpSrvQ0ZH';
+const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || 'SB-Mid-client-YAwDc1cL-NWUpMAY';
 const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === 'true';
 
 const snap = new midtransClient.Snap({
@@ -311,7 +311,7 @@ app.put('/api/inmates/:id', (req, res) => {
     db.run(
         `UPDATE inmates SET alias=?, crimeType=?, cell=?, age=?, gender=?, exitDate=?, tier=?, points=? WHERE id=?`,
         [alias, crimeType, cell, age, gender, exitDate, tier, points, req.params.id],
-        function(err) {
+        function (err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: 'Napi tidak ditemukan' });
             res.json({ success: true, message: 'Data berhasil diupdate' });
