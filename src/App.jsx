@@ -487,78 +487,7 @@ function App() {
         } catch { alert('Gagal membagikan gaji!'); }
     };
 
-    // ============================================================
-    // KANTIN / CART
-    // ============================================================
-    const addToCart = (productId) => {
-        if (!selectedInmateId) return alert('Pilih Napi terlebih dahulu!');
-        const product = (products || []).find(p => p.id === productId);
-        const inmate = (inmates || []).find(i => i.id === selectedInmateId);
-        if (!product || !inmate) return;
-        if (getThreatLevel(inmate.points).restrictLuxury && product.type === 'luxury')
-            return alert('DITOLAK: Barang Mewah dilarang untuk napi EXTREME!');
-        const existing = (cart || []).find(item => item.id === productId);
-        if (existing) {
-            if (existing.qty + 1 > product.stock) return alert('Stok tidak mencukupi!');
-            setCart(prev => (prev || []).map(c => c.id === productId ? { ...c, qty: c.qty + 1 } : c));
-        } else {
-            setCart(prev => [...(prev || []), { ...product, qty: 1 }]);
-        }
-    };
-
-    const removeFromCart = (productId) => setCart(prev => (prev || []).filter(item => item.id !== productId));
-
-    const subtotal = (cart || []).reduce((a, b) => a + ((b.price || 0) * (b.qty || 0)), 0);
-    const tax = subtotal * 0.11;
-    const grandTotal = subtotal + tax;
-
-    // ============================================================
-    // MIDTRANS PAYMENT
-    // ============================================================
-    const triggerMidtransPayment = async () => {
-        const inmate = (inmates || []).find(i => i.id === selectedInmateId);
-        if (!inmate) return alert('Pilih Napi pembeli!');
-        if ((inmate.saldo || 0) + getThreatLevel(inmate.points).creditLimit < grandTotal)
-            return alert('OVERLIMIT: Saldo + limit kredit Napi tidak cukup!');
-
-        try {
-            const response = await fetch('/api/midtrans-token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ inmateId: inmate.id, inmateAlias: inmate.alias, total: grandTotal, cart }),
-            });
-            const data = await response.json();
-            if (data.token) {
-                window.snap.pay(data.token, {
-                    onSuccess: async () => {
-                        await fetch('/api/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ inmateId: selectedInmateId, total: grandTotal, cart }),
-                        });
-                        setTransactions(prev => [{
-                            id: data.orderId,
-                            date: new Date().toLocaleString(),
-                            inmateId: selectedInmateId,
-                            items: [...cart],
-                            total: grandTotal,
-                            status: 'PAID (MIDTRANS)',
-                        }, ...prev]);
-                        setCart([]);
-                        sendNotif(`MIDTRANS: Transaksi ${data.orderId} berhasil.`, 'green');
-                        fetchData();
-                    },
-                    onPending: () => alert('Menunggu konfirmasi pembayaran...'),
-                    onError: () => alert('Pembayaran Midtrans gagal!'),
-                    onClose: () => alert('Anda menutup pop-up sebelum menyelesaikan pembayaran.'),
-                });
-            } else {
-                alert('Gagal mendapatkan token Midtrans. Cek konfigurasi server!');
-            }
-        } catch {
-            alert('Error payment gateway. Pastikan server backend berjalan!');
-        }
-    };
+    // (Midtrans payment and Cart logic have been removed as part of Kantin removal)
 
     // ============================================================
     // LOAN (KOPERASI)
@@ -1377,18 +1306,7 @@ function App() {
                             </div>
                         </>
                     )}
-                    {printType === 'struk' && (
-                        <div className="struk-pembelian">
-                            <h3 style={{ textAlign: 'center' }}>KANTIN SUPERMAX — INVOICE</h3>
-                            <p>ID: {activePrint.trxId} | {activePrint.date}</p>
-                            <hr />
-                            {(activePrint.cart || []).map(c => (
-                                <div key={c?.id}>{c?.name} x{c?.qty} — Rp {formatRp((c?.price || 0) * (c?.qty || 0))}</div>
-                            ))}
-                            <hr />
-                            <p><strong>TOTAL BAYAR: Rp {formatRp(activePrint.grandTotal)}</strong></p>
-                        </div>
-                    )}
+                    {/* Print options specific to features removed */}
                 </div>
             )}
         </>
