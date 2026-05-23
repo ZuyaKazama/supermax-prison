@@ -15,9 +15,8 @@ app.use(express.json());
 // 💳 KONFIGURASI MIDTRANS
 // =================================================================
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || '';
-const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || '';
-const isProdKey = !MIDTRANS_SERVER_KEY.startsWith('SB-');
-const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === 'true' || isProdKey;
+const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || 'Mid-client-YAwDc1cL-NWUpMAY';
+const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === 'true';
 
 const snap = new midtransClient.Snap({
     isProduction: MIDTRANS_IS_PRODUCTION,
