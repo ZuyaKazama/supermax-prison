@@ -87,12 +87,14 @@ const WARDEN_ONLY_ACTIONS = ['delete_inmate', 'add_product', 'payroll', 'approve
 // MAIN APP
 // ============================================================
 function App() {
-    // --- AUTH STATE ---
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [user, setUser] = useState(null); // { name, email, picture, role }
+    // --- AUTH STATE (restore dari localStorage jika ada) ---
+    const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('sipenjara_user'));
+    const [user, setUser] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('sipenjara_user')); } catch { return null; }
+    });
     const [loginError, setLoginError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
-    const [loginRole, setLoginRole] = useState(null); // null | 'warden' | 'guard'
+    const [loginRole, setLoginRole] = useState(null);
 
     // --- OTP STATE ---
     const [otpStep, setOtpStep] = useState('idle'); // idle | otp_sent
@@ -185,6 +187,7 @@ function App() {
             });
             const data = await res.json();
             if (data.success) {
+                localStorage.setItem('sipenjara_user', JSON.stringify(data.user));
                 setUser(data.user);
                 setIsLoggedIn(true);
             } else {
@@ -239,6 +242,7 @@ function App() {
             });
             const data = await res.json();
             if (data.success) {
+                localStorage.setItem('sipenjara_user', JSON.stringify(data.user));
                 setUser(data.user);
                 setIsLoggedIn(true);
                 setOtpStep('idle');
@@ -276,6 +280,7 @@ function App() {
     // LOGOUT
     // ============================================================
     const handleLogout = () => {
+        localStorage.removeItem('sipenjara_user');
         setIsLoggedIn(false);
         setUser(null);
         setLoginRole(null);
