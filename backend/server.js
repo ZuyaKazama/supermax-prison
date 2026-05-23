@@ -510,19 +510,60 @@ app.post('/api/midtrans/confirm', async (req, res) => {
                 [saldoBefore, saldoAfter, orderId]);
             console.log(`✅ Deposit Midtrans BERHASIL: ${orderId} | +Rp ${trx.total.toLocaleString()} → ${inmate.alias}`);
             res.json({ success: true, trxId: orderId, saldoBefore, saldoAfter, type: 'deposit' });
-        } else if (trx.jenis === 'kantin') {
-            // Kantin: tidak potong saldo (sudah dibayar via Midtrans)
-            await updateDailyUsage(trx.inmate_id, 'kantin', trx.total);
-            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ?, detail = ? WHERE trx_id = ?",
-                [saldoBefore, saldoBefore, JSON.stringify({ payment_method: 'midtrans', paid: true }), orderId]);
-            console.log(`✅ Kantin Midtrans BERHASIL: ${orderId} | Rp ${trx.total.toLocaleString()} | ${inmate.alias}`);
-            res.json({ success: true, trxId: orderId, total: trx.total, saldoBefore, saldoAfter: saldoBefore, type: 'kantin' });
         } else {
             res.status(400).json({ error: 'Tipe transaksi tidak dikenali' });
         }
     } catch (e) {
         console.error('❌ Midtrans Confirm Error:', e.message);
         res.status(500).json({ error: e.message });
+    }
+});
+
+// =================================================================
+// 💳 MIDTRANS: Check Status (cek langsung ke Midtrans API)
+// =================================================================
+app.get('/api/midtrans/check-status/:orderId', async (req, res) => {
+    const { orderId } = req.params;
+    try {
+        // Cek status dari Midtrans API
+        const statusResponse = await snap.transaction.status(orderId);
+        const transactionStatus = statusResponse.transaction_status;
+        const fraudStatus = statusResponse.fraud_status;
+
+        console.log(`🔍 Check Status: ${orderId} | Status: ${transactionStatus} | Fraud: ${fraudStatus}`);
+
+        if (transactionStatus === 'capture' || transactionStatus === 'settlement') {
+            if (fraudStatus === 'accept' || !fraudStatus) {
+                // Cek apakah transaksi masih pending di DB
+                const trx = await new Promise((r, j) => db.get("SELECT * FROM transactions WHERE trx_id = ? AND status = 'pending_payment'", [orderId], (e, row) => e ? j(e) : r(row)));
+                if (trx) {
+                    const inmate = await new Promise((r, j) => db.get("SELECT * FROM inmates WHERE id = ?", [trx.inmate_id], (e, row) => e ? j(e) : r(row)));
+                    if (inmate) {
+                        const saldoBefore = inmate.saldo || 0;
+                        if (trx.jenis === 'deposit') {
+                            const saldoAfter = saldoBefore + trx.total;
+                            db.run("UPDATE inmates SET saldo = ? WHERE id = ?", [saldoAfter, trx.inmate_id]);
+                            db.run("UPDATE transactions SET status = 'success', saldo_sebelum = ?, saldo_sesudah = ? WHERE trx_id = ?",
+                                [saldoBefore, saldoAfter, orderId]);
+                            console.log(`✅ Check-Status Deposit BERHASIL: ${orderId} | +Rp ${trx.total.toLocaleString()} → ${inmate.alias}`);
+                            return res.json({ success: true, status: 'paid', trxId: orderId, saldoBefore, saldoAfter });
+                        }
+                    }
+                }
+                // Sudah diproses sebelumnya
+                return res.json({ success: true, status: 'already_processed' });
+            }
+        } else if (transactionStatus === 'pending') {
+            return res.json({ success: true, status: 'pending', message: 'Pembayaran belum dikonfirmasi. Silakan selesaikan pembayaran.' });
+        } else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
+            db.run("UPDATE transactions SET status = 'failed' WHERE trx_id = ? AND status = 'pending_payment'", [orderId]);
+            return res.json({ success: true, status: 'failed', message: 'Pembayaran gagal/expired.' });
+        }
+
+        res.json({ success: true, status: transactionStatus });
+    } catch (e) {
+        console.error('❌ Check Status Error:', e.message);
+        res.status(500).json({ error: 'Gagal cek status: ' + e.message });
     }
 });
 

@@ -9,6 +9,8 @@ export default function Deposit({ inmates, onNotif, onRefresh }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [payMethod, setPayMethod] = useState('midtrans'); // 'midtrans' | 'manual'
+  const [pendingOrderId, setPendingOrderId] = useState(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const inmate = (inmates || []).find(i => i.id === selectedId);
   const presets = [50000, 100000, 200000, 500000];
@@ -91,7 +93,10 @@ export default function Deposit({ inmates, onNotif, onRefresh }) {
           setLoading(false);
         },
         onClose: () => {
-          setError('Pembayaran dibatalkan.');
+          // VA payment: popup ditutup sebelum pembayaran selesai
+          // Simpan orderId agar bisa cek status nanti
+          setPendingOrderId(data.orderId);
+          setError('Popup ditutup. Jika sudah bayar, klik tombol "Cek Status Pembayaran" di bawah.');
           setLoading(false);
         },
       });
@@ -105,6 +110,35 @@ export default function Deposit({ inmates, onNotif, onRefresh }) {
   const handleDeposit = () => {
     if (payMethod === 'midtrans') handleDepositMidtrans();
     else handleDepositManual();
+  };
+
+  // === CEK STATUS PEMBAYARAN ===
+  const checkPaymentStatus = async () => {
+    if (!pendingOrderId) return;
+    setCheckingStatus(true); setError('');
+    try {
+      const res = await fetch(`/api/midtrans/check-status/${pendingOrderId}`);
+      const data = await res.json();
+      if (data.status === 'paid') {
+        setReceipt({ trxId: data.trxId, saldoBefore: data.saldoBefore, saldoAfter: data.saldoAfter, payMethod: 'Midtrans' });
+        setPendingOrderId(null);
+        setAmount('');
+        onNotif(`💳 DEPOSIT: ${data.trxId} berhasil via Midtrans! Saldo bertambah.`, 'green');
+        onRefresh();
+      } else if (data.status === 'already_processed') {
+        setPendingOrderId(null);
+        onNotif(`✅ Pembayaran ${pendingOrderId} sudah diproses sebelumnya.`, 'green');
+        onRefresh();
+      } else if (data.status === 'pending') {
+        setError('⏳ Pembayaran masih menunggu. Selesaikan pembayaran lalu cek lagi.');
+      } else if (data.status === 'failed') {
+        setError('❌ Pembayaran gagal atau expired.');
+        setPendingOrderId(null);
+      } else {
+        setError(`Status: ${data.status}`);
+      }
+    } catch (e) { setError('Gagal cek status pembayaran.'); }
+    setCheckingStatus(false);
   };
 
   return (
@@ -209,6 +243,32 @@ export default function Deposit({ inmates, onNotif, onRefresh }) {
           )}
 
           {error && <div className="error-box">❌ {error}</div>}
+
+          {/* CEK STATUS PEMBAYARAN PENDING */}
+          {pendingOrderId && (
+            <div style={{
+              padding: '16px', borderRadius: '12px', marginBottom: '12px',
+              background: 'rgba(0, 48, 135, 0.06)', border: '1px solid rgba(0, 48, 135, 0.2)'
+            }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-main)', margin: '0 0 8px' }}>
+                📋 Order ID: <strong>{pendingOrderId}</strong>
+              </p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '0 0 10px' }}>
+                Sudah bayar via VA/QRIS? Klik tombol di bawah untuk konfirmasi.
+              </p>
+              <button
+                onClick={checkPaymentStatus}
+                disabled={checkingStatus}
+                style={{
+                  width: '100%', padding: '12px', borderRadius: '50px', border: 'none',
+                  background: 'linear-gradient(135deg, #003087, #0070d1)', color: 'white',
+                  cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', letterSpacing: '1px'
+                }}
+              >
+                {checkingStatus ? '⏳ Mengecek...' : '🔍 CEK STATUS PEMBAYARAN'}
+              </button>
+            </div>
+          )}
           <button
             className="btn-primary"
             onClick={handleDeposit}
