@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
-import Kantin from './components/Kantin';
+
 import Telepon from './components/Telepon';
 import Deposit from './components/Deposit';
 import Riwayat from './components/Riwayat';
@@ -746,7 +746,6 @@ function App() {
     const sidebarItems = [
         { id: 'dashboard', icon: '📊', label: 'Dashboard', section: 'main', access: 'all' },
         { id: 'datanapi', icon: '📋', label: 'Data Napi', section: 'main', access: 'all' },
-        { id: 'kantin', icon: '🛒', label: 'Kantin', section: 'main', access: 'all' },
         { id: 'telepon', icon: '📞', label: 'Telepon', section: 'main', access: 'all' },
         { id: 'deposit', icon: '💰', label: 'Deposit', section: 'keuangan', access: 'all' },
         { id: 'riwayat', icon: '📋', label: 'Riwayat', section: 'keuangan', access: 'all' },
@@ -1231,9 +1230,6 @@ function App() {
                         )}
 
                         {/* =================== SUB PAGES =================== */}
-                        {activeTab === 'kantin' && (
-                            <Kantin inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
-                        )}
                         {activeTab === 'telepon' && (
                             <Telepon inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
                         )}

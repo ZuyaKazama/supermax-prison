@@ -111,6 +111,15 @@ db.serialize(() => {
     )`);
 });
 
+// Cleanup: cancel semua transaksi kantin/laundry yang masih pending (fitur sudah dihapus)
+db.run("UPDATE transactions SET status = 'cancelled' WHERE status = 'pending_payment' AND (jenis = 'kantin' OR jenis = 'laundry')", function(err) {
+    if (!err && this.changes > 0) {
+        console.log(`🧹 Auto-cleanup: ${this.changes} transaksi kantin/laundry pending → cancelled`);
+    }
+});
+
+
+
 // =================================================================
 // 🎲 HELPERS
 // =================================================================
