@@ -106,7 +106,6 @@ function App() {
     // --- APP STATE ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [inmates, setInmates] = useState([]);
-    const [products, setProducts] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [notifications, setNotifications] = useState([
         { id: 1, time: new Date().toLocaleTimeString(), msg: 'SISTEM ONLINE & TERKONEKSI DATABASE', type: 'info' }
@@ -115,9 +114,7 @@ function App() {
     const [printType, setPrintType] = useState('dossier');
     const [clock, setClock] = useState('');
 
-    // --- MODAL STATE ---
     const [isRegModalOpen, setIsRegModalOpen] = useState(false);
-    const [isProdModalOpen, setIsProdModalOpen] = useState(false);
 
     // --- REGISTRASI FORM ---
     const [regName, setRegName] = useState('');
@@ -132,13 +129,6 @@ function App() {
     const [regJob, setRegJob] = useState('Tidak Ada');
     const [regDesc, setRegDesc] = useState('');
 
-    // --- PRODUK FORM ---
-    const [prodName, setProdName] = useState('');
-    const [prodPrice, setProdPrice] = useState('');
-    const [prodStock, setProdStock] = useState('');
-    const [prodType, setProdType] = useState('general');
-
-    // --- KANTIN STATE (dihapus) ---
 
 
     // ============================================================
@@ -166,8 +156,6 @@ function App() {
         try {
             const resInm = await fetch('/api/inmates');
             if (resInm.ok) setInmates(await resInm.json());
-            const resProd = await fetch('/api/products');
-            if (resProd.ok) setProducts(await resProd.json());
         } catch (err) {
             sendNotif('Koneksi Backend Terputus!', 'error');
         }
@@ -451,90 +439,8 @@ function App() {
         } catch { alert('Gagal menghapus!'); }
     };
 
-    // ============================================================
-    // PRODUCT ACTIONS
-    // ============================================================
-    const handleAddProduct = async () => {
-        if (!isWarden) return alert('Akses ditolak. Hanya Warden yang dapat menambah produk.');
-        if (!prodName || !prodPrice || !prodStock) return alert('Lengkapi data barang!');
-        const newProd = {
-            id: 'P' + Math.floor(Math.random() * 9000 + 1000),
-            name: prodName, price: Number(prodPrice), type: prodType, stock: Number(prodStock),
-        };
-        try {
-            const res = await fetch('/api/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newProd),
-            });
-            if (res.ok) {
-                setIsProdModalOpen(false);
-                setProducts(prev => [newProd, ...(prev || [])]);
-                sendNotif('GUDANG: Barang baru ditambahkan.', 'green');
-                setProdName(''); setProdPrice(''); setProdStock('');
-            }
-        } catch { alert('Gagal menambah barang!'); }
-    };
 
-    // ============================================================
-    // PAYROLL
-    // ============================================================
-    const distributeSHU = async () => {
-        if (!isWarden) return alert('Akses ditolak. Hanya Warden yang dapat mendistribusikan payroll.');
-        if (!window.confirm('Distribusikan gaji ke semua napi yang bekerja?')) return;
-        try {
-            const res = await fetch('/api/payroll', { method: 'POST' });
-            if (res.ok) {
-                setInmates(prev => (prev || []).map(i => ({ ...i, saldo: (i.saldo || 0) + (i.wage || 0) })));
-                sendNotif('PAYROLL: Gaji berhasil didistribusikan!', 'outgoing');
-                alert('✅ Gaji sukses dibagikan ke semua napi yang bekerja!');
-            }
-        } catch { alert('Gagal membagikan gaji!'); }
-    };
 
-    // (Midtrans payment and Cart logic have been removed as part of Kantin removal)
-
-    // ============================================================
-    // LOAN (KOPERASI)
-    // ============================================================
-    const submitLoan = () => {
-        if (!selectedInmateId || !loanAmount) return alert('Pilih napi dan masukkan nominal pinjaman!');
-        const inmate = (inmates || []).find(i => i.id === selectedInmateId);
-        if (!inmate) return alert('Napi tidak ditemukan!');
-        const trxId = 'LOAN-' + Math.floor(Math.random() * 90000);
-        setTransactions(prev => [{
-            id: trxId,
-            date: new Date().toLocaleString(),
-            inmateId: selectedInmateId,
-            inmateAlias: inmate.alias,
-            items: [{ name: 'Pinjaman Koperasi' }],
-            total: Number(loanAmount) || 0,
-            status: 'QUEUE (PENDING)',
-            type: 'LOAN',
-        }, ...(prev || [])]);
-        sendNotif(`KOPERASI: Pengajuan pinjaman ${inmate.alias} masuk antrian Warden.`, 'incoming');
-        setLoanAmount('');
-    };
-
-    const approveLoan = async (trx) => {
-        if (!isWarden) return alert('Akses ditolak. Hanya Warden yang dapat menyetujui pinjaman.');
-        try {
-            const res = await fetch('/api/inmates/update-saldo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: trx.inmateId, amount: trx.total }),
-            });
-            if (res.ok) {
-                setTransactions(prev => (prev || []).map(t => t.id === trx.id ? { ...t, status: 'APPROVED' } : t));
-                setInmates(prev => (prev || []).map(i => i.id === trx.inmateId ? { ...i, saldo: (i.saldo || 0) + (trx.total || 0) } : i));
-                sendNotif(`WARDEN: Pinjaman ${trx.id} DISETUJUI!`, 'outgoing');
-            } else {
-                alert('Gagal menyetujui pinjaman. Cek server.');
-            }
-        } catch {
-            alert('Error koneksi server.');
-        }
-    };
 
     const handlePrint = (data, type) => {
         setActivePrint(data);
@@ -745,10 +651,10 @@ function App() {
     // Sidebar items dengan permission check
     const sidebarItems = [
         { id: 'dashboard', icon: '📊', label: 'Dashboard', section: 'main', access: 'all' },
-        { id: 'datanapi', icon: '📋', label: 'Data Napi', section: 'main', access: 'all' },
         { id: 'telepon', icon: '📞', label: 'Telepon', section: 'main', access: 'all' },
         { id: 'deposit', icon: '💰', label: 'Deposit', section: 'keuangan', access: 'all' },
-        { id: 'riwayat', icon: '📋', label: 'Riwayat', section: 'keuangan', access: 'all' },
+        { id: 'datanapi', icon: '👤', label: 'Data Napi', section: 'dosier', access: 'all' },
+        { id: 'riwayat', icon: '📜', label: 'Riwayat', section: 'dosier', access: 'all' },
     ];
 
     return (
@@ -861,44 +767,7 @@ function App() {
                 </div>
             )}
 
-            {/* ============================================================
-                MODAL — TAMBAH PRODUK (Warden only)
-            ============================================================ */}
-            {isWarden && (
-                <div className={`modal-overlay ${isProdModalOpen ? 'open' : ''}`}
-                    onClick={(e) => { if (e.target.className.includes('modal-overlay')) setIsProdModalOpen(false); }}>
-                    <div className="modal-box">
-                        <div className="modal-header">
-                            <h3>📦 Tambah Item Gudang</h3>
-                            <button className="modal-close" onClick={() => setIsProdModalOpen(false)}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="form-group">
-                                <label>Nama Barang</label>
-                                <input type="text" value={prodName} onChange={(e) => setProdName(e.target.value)} placeholder="Contoh: Kopi Hitam" />
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Harga (Rp)</label>
-                                    <input type="number" value={prodPrice} onChange={(e) => setProdPrice(e.target.value)} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Stok Awal</label>
-                                    <input type="number" value={prodStock} onChange={(e) => setProdStock(e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Kategori</label>
-                                <select value={prodType} onChange={(e) => setProdType(e.target.value)}>
-                                    <option value="general">Barang Umum</option>
-                                    <option value="luxury">Barang Mewah (Luxury)</option>
-                                </select>
-                            </div>
-                            <button className="btn-primary" onClick={handleAddProduct}>+ SIMPAN BARANG</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* ============================================================
                 HEADER
@@ -948,12 +817,7 @@ function App() {
                             + NAPI BARU
                         </button>
                     )}
-                    {isWarden && (
-                        <button className="action-btn" onClick={() => setIsProdModalOpen(true)}
-                            style={{ padding: '10px 18px', fontSize: '0.7rem', borderColor: 'var(--green-go)', color: 'var(--green-go)', borderRadius: '8px' }}>
-                            + PRODUK
-                        </button>
-                    )}
+
                 </div>
             </header>
 
@@ -995,35 +859,20 @@ function App() {
                         </a>
                     ))}
 
-                    {/* Payroll — Warden only */}
-                    {isWarden && (
-                        <>
-                            <div className="sidebar-divider"></div>
-                            <div className="sidebar-section-label">ADMINISTRASI</div>
-                            <a className="sidebar-link sidebar-link-payroll" onClick={distributeSHU}>
-                                <span className="sidebar-icon">💵</span>
-                                <span>Distribusi Payroll</span>
-                            </a>
-                        </>
-                    )}
+                    <div className="sidebar-divider"></div>
+                    <div className="sidebar-section-label">DOSIER</div>
+                    {sidebarItems.filter(i => i.section === 'dosier').map(item => (
+                        <a
+                            key={item.id}
+                            className={`sidebar-link ${activeTab === item.id ? 'active' : ''}`}
+                            onClick={() => setActiveTab(item.id)}
+                        >
+                            <span className="sidebar-icon">{item.icon}</span>
+                            <span>{item.label}</span>
+                        </a>
+                    ))}
 
-                    {/* Guard: tampilkan seksi admin tapi disabled */}
-                    {isGuard && (
-                        <>
-                            <div className="sidebar-divider"></div>
-                            <div className="sidebar-section-label">ADMINISTRASI</div>
-                            <a className="sidebar-link sidebar-link-disabled">
-                                <span className="sidebar-icon">💵</span>
-                                <span>Distribusi Payroll</span>
-                                <span className="sidebar-lock">🔒</span>
-                            </a>
-                            <a className="sidebar-link sidebar-link-disabled">
-                                <span className="sidebar-icon">📦</span>
-                                <span>Tambah Produk</span>
-                                <span className="sidebar-lock">🔒</span>
-                            </a>
-                        </>
-                    )}
+
 
                     <div className="sidebar-divider"></div>
                     <div className="sidebar-section-label">SISTEM</div>
@@ -1097,7 +946,7 @@ function App() {
                                     </div>
                                 </div>
 
-                                {/* Warden-only: Payroll quick action */}
+                                {/* Warden-only: Quick actions */}
                                 {isWarden && (
                                     <div className="warden-quick-actions">
                                         <div className="quick-actions-title">⚡ Aksi Cepat Warden</div>
@@ -1105,19 +954,11 @@ function App() {
                                             <button className="quick-action-btn qa-blue" onClick={() => setIsRegModalOpen(true)}>
                                                 <span>⛓️</span> Registrasi Napi Baru
                                             </button>
-                                            <button className="quick-action-btn qa-green" onClick={distributeSHU}>
-                                                <span>💵</span> Distribusi Payroll
+                                            <button className="quick-action-btn qa-green" onClick={() => setActiveTab('deposit')}>
+                                                <span>💰</span> Deposit Saldo
                                             </button>
-                                            <button className="quick-action-btn qa-orange" onClick={() => setIsProdModalOpen(true)}>
-                                                <span>📦</span> Tambah Produk Kantin
-                                            </button>
-                                            <button className="quick-action-btn qa-red"
-                                                onClick={() => {
-                                                    const pending = transactions.filter(t => t.status?.includes('QUEUE') && t.type === 'LOAN');
-                                                    if (pending.length === 0) return alert('Tidak ada pengajuan pinjaman pending.');
-                                                    setActiveTab('riwayat');
-                                                }}>
-                                                <span>🏦</span> Review Pinjaman ({transactions.filter(t => t.status?.includes('QUEUE')).length})
+                                            <button className="quick-action-btn qa-orange" onClick={() => setActiveTab('riwayat')}>
+                                                <span>📋</span> Lihat Riwayat Transaksi
                                             </button>
                                         </div>
                                     </div>
@@ -1135,7 +976,7 @@ function App() {
                                     <div className="warden-notes-grid">
                                         {[
                                             { num: '01', cls: 'note-red', icon: '🚫', title: 'Anti-Gratifikasi', text: 'Dilarang keras menerima hadiah, uang, atau bentuk gratifikasi apapun dari narapidana, keluarga napi, maupun pihak ketiga. Segala bentuk suap wajib dilaporkan ke Inspektorat.' },
-                                            { num: '02', cls: 'note-orange', icon: '📊', title: 'Transparansi Keuangan', text: 'Seluruh transaksi keuangan (kantin, payroll, pinjaman koperasi) harus tercatat di sistem. Manipulasi data saldo atau transaksi merupakan pelanggaran berat.' },
+                                            { num: '02', cls: 'note-orange', icon: '📊', title: 'Transparansi Keuangan', text: 'Seluruh transaksi keuangan (deposit, telepon) harus tercatat di sistem. Manipulasi data saldo atau transaksi merupakan pelanggaran berat.' },
                                             { num: '03', cls: 'note-yellow', icon: '⚖️', title: 'Hak Narapidana', text: 'Setiap narapidana berhak mendapat perlakuan manusiawi sesuai UU No. 22 Tahun 2022. Pelanggaran HAM akan diproses secara hukum tanpa toleransi.' },
                                             { num: '04', cls: 'note-green', icon: '📝', title: 'Dokumentasi & Audit', text: 'Semua kegiatan wajib terdokumentasi. Audit internal dilakukan setiap bulan dan audit eksternal setiap semester. Data tidak boleh dihapus tanpa otorisasi.' },
                                             { num: '05', cls: 'note-blue', icon: '🔍', title: 'Pengawasan Berlapis', text: 'Sistem pengawasan menggunakan prinsip four-eyes: setiap keputusan penting memerlukan persetujuan minimal 2 pejabat berwenang untuk mencegah penyalahgunaan.' },
@@ -1241,7 +1082,6 @@ function App() {
                                 inmates={inmates}
                                 transactions={transactions}
                                 user={user}
-                                onApproveLoan={isWarden ? approveLoan : null}
                             />
                         )}
                         {activeTab === 'datanapi' && (

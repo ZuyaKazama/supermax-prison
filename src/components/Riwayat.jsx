@@ -37,9 +37,7 @@ export default function Riwayat({ inmates }) {
           <label>Filter Layanan</label>
           <select value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
             <option value="">Semua</option>
-            <option value="kantin">🛒 Kantin</option>
             <option value="telepon">📞 Telepon</option>
-            <option value="laundry">👕 Laundry</option>
             <option value="deposit">💰 Deposit</option>
           </select>
         </div>
