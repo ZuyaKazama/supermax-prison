@@ -1082,10 +1082,11 @@ function App() {
                                 inmates={inmates}
                                 transactions={transactions}
                                 user={user}
+                                onPrint={handlePrint}
                             />
                         )}
                         {activeTab === 'datanapi' && (
-                            <DataNapi inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} />
+                            <DataNapi inmates={inmates} onNotif={sendNotif} onRefresh={fetchData} user={user} onPrint={handlePrint} />
                         )}
                     </div>
                 </div>
@@ -1147,7 +1148,46 @@ function App() {
                             </div>
                         </>
                     )}
-                    {/* Print options specific to features removed */}
+                    {printType === 'riwayat' && activePrint.transactions && (
+                        <>
+                            <div className="kop-surat">
+                                <h1>NUSA KAMBANGAN SUPERMAX</h1>
+                                <p>Laporan Riwayat Transaksi | DATABASE SQLITE</p>
+                            </div>
+                            <div style={{ marginBottom: '20px', color: 'black' }}>
+                                <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Periode:</strong> Seluruh Transaksi</p>
+                                <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Total Record:</strong> {activePrint.transactions.length}</p>
+                                <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Dicetak pada:</strong> {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} — {new Date().toLocaleTimeString('id-ID')}</p>
+                            </div>
+                            <table className="dossier-table">
+                                <thead><tr><th>ID</th><th>Layanan</th><th>Napi</th><th>Total</th><th>Saldo</th><th>Waktu</th><th>Status</th></tr></thead>
+                                <tbody>
+                                    {activePrint.transactions.map(t => {
+                                        const inmateData = (inmates || []).find(i => i.id === t.inmate_id);
+                                        return (
+                                            <tr key={t.id}>
+                                                <td style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.trx_id}</td>
+                                                <td>{(t.jenis || '').toUpperCase()}</td>
+                                                <td>{inmateData?.alias || t.inmate_id}</td>
+                                                <td style={{ textAlign: 'right' }}>{t.jenis === 'deposit' ? '+' : '-'}Rp {formatRp(t.total)}</td>
+                                                <td style={{ textAlign: 'right' }}>Rp {formatRp(t.saldo_sesudah)}</td>
+                                                <td style={{ fontSize: '11px' }}>{t.created_at}</td>
+                                                <td>{t.status}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end', color: 'black' }}>
+                                <div style={{ textAlign: 'center', width: '300px' }}>
+                                    <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Dicetak pada: {new Date().toLocaleDateString('id-ID')}</p>
+                                    <p style={{ margin: '0 0 80px 0', fontWeight: 'bold', fontSize: '16px' }}>KEPALA LEMBAGA PEMASYARAKATAN</p>
+                                    <div style={{ borderBottom: '2px solid black', width: '100%', display: 'inline-block' }}></div>
+                                    <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>NIP. 19800512 200501 1 004</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
         </>

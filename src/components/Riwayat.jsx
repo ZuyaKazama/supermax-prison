@@ -5,7 +5,7 @@ const formatRp = (n) => isNaN(Number(n)) ? '0' : Number(n).toLocaleString('id-ID
 const JENIS_ICONS = { kantin: '🛒', telepon: '📞', laundry: '👕', deposit: '💰' };
 const JENIS_COLORS = { kantin: 'var(--green-go)', telepon: 'var(--blue-accent)', laundry: '#9b59b6', deposit: 'var(--orange)' };
 
-export default function Riwayat({ inmates }) {
+export default function Riwayat({ inmates, onPrint }) {
   const [trxList, setTrxList] = useState([]);
   const [filterId, setFilterId] = useState('');
   const [filterJenis, setFilterJenis] = useState('');
@@ -24,7 +24,19 @@ export default function Riwayat({ inmates }) {
 
   return (
     <>
-      <div className="section-header"><h2>📊 RIWAYAT TRANSAKSI</h2><span className="badge">{filtered.length} RECORD</span></div>
+      <div className="section-header">
+        <h2>📊 RIWAYAT TRANSAKSI</h2>
+        <span className="badge">{filtered.length} RECORD</span>
+        {onPrint && filtered.length > 0 && (
+          <button
+            className="action-btn"
+            style={{ marginLeft: 'auto', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => onPrint({ transactions: filtered }, 'riwayat')}
+          >
+            🖨️ PRINT LAPORAN
+          </button>
+        )}
+      </div>
       <div className="form-row" style={{ marginBottom: '16px' }}>
         <div className="form-group">
           <label>Filter Napi</label>

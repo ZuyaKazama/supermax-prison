@@ -2184,7 +2184,8 @@ footer {
 .crud-action-edit,
 .crud-action-delete,
 .crud-action-save,
-.crud-action-cancel {
+.crud-action-cancel,
+.crud-action-print {
     width: 30px;
     height: 30px;
     border-radius: 50%;
@@ -2200,7 +2201,8 @@ footer {
 .crud-action-edit svg,
 .crud-action-delete svg,
 .crud-action-save svg,
-.crud-action-cancel svg {
+.crud-action-cancel svg,
+.crud-action-print svg {
     width: 14px;
     height: 14px;
 }
@@ -2212,6 +2214,16 @@ footer {
 
 .crud-action-edit:hover {
     background: #f39c12;
+    color: #ffffff;
+}
+
+.crud-action-print {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.crud-action-print:hover {
+    background: #1976d2;
     color: #ffffff;
 }
 
