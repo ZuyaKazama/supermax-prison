@@ -1112,12 +1112,12 @@ function App() {
                         <>
                             <div className="kop-surat">
                                 <div className="kop-logos">
-                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <img src="/logo-supermax.png" alt="Supermax" className="kop-logo kop-logo-left" />
                                     <div className="kop-text">
                                         <h1>NUSA KAMBANGAN SUPERMAX</h1>
                                         <p>Dossier Tahanan | DATABASE SQLITE</p>
                                     </div>
-                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                    <img src="/logo-upb.png" alt="UPB" className="kop-logo kop-logo-right" />
                                 </div>
                             </div>
                             <div className="profil-layout">
@@ -1158,12 +1158,12 @@ function App() {
                         <>
                             <div className="kop-surat">
                                 <div className="kop-logos">
-                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <img src="/logo-supermax.png" alt="Supermax" className="kop-logo kop-logo-left" />
                                     <div className="kop-text">
                                         <h1>NUSA KAMBANGAN SUPERMAX</h1>
                                         <p>Laporan Riwayat Transaksi | DATABASE SQLITE</p>
                                     </div>
-                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                    <img src="/logo-upb.png" alt="UPB" className="kop-logo kop-logo-right" />
                                 </div>
                             </div>
                             <div style={{ marginBottom: '20px', color: 'black' }}>
@@ -1204,12 +1204,12 @@ function App() {
                         <>
                             <div className="kop-surat">
                                 <div className="kop-logos">
-                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <img src="/logo-supermax.png" alt="Supermax" className="kop-logo kop-logo-left" />
                                     <div className="kop-text">
                                         <h1>NUSA KAMBANGAN SUPERMAX</h1>
                                         <p>Laporan Data Narapidana | DATABASE SQLITE</p>
                                     </div>
-                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                    <img src="/logo-upb.png" alt="UPB" className="kop-logo kop-logo-right" />
                                 </div>
                             </div>
                             <div style={{ marginBottom: '20px', color: 'black' }}>
