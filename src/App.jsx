@@ -1111,8 +1111,14 @@ function App() {
                     {printType === 'dossier' && (
                         <>
                             <div className="kop-surat">
-                                <h1>NUSA KAMBANGAN SUPERMAX</h1>
-                                <p>Dossier Tahanan | DATABASE SQLITE</p>
+                                <div className="kop-logos">
+                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <div className="kop-text">
+                                        <h1>NUSA KAMBANGAN SUPERMAX</h1>
+                                        <p>Dossier Tahanan | DATABASE SQLITE</p>
+                                    </div>
+                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                </div>
                             </div>
                             <div className="profil-layout">
                                 {activePrint.gender === 'P' ? <FemaleAvatar /> : <MaleAvatar />}
@@ -1151,8 +1157,14 @@ function App() {
                     {printType === 'riwayat' && activePrint.transactions && (
                         <>
                             <div className="kop-surat">
-                                <h1>NUSA KAMBANGAN SUPERMAX</h1>
-                                <p>Laporan Riwayat Transaksi | DATABASE SQLITE</p>
+                                <div className="kop-logos">
+                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <div className="kop-text">
+                                        <h1>NUSA KAMBANGAN SUPERMAX</h1>
+                                        <p>Laporan Riwayat Transaksi | DATABASE SQLITE</p>
+                                    </div>
+                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                </div>
                             </div>
                             <div style={{ marginBottom: '20px', color: 'black' }}>
                                 <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Periode:</strong> Seluruh Transaksi</p>
@@ -1191,8 +1203,14 @@ function App() {
                     {printType === 'datanapi' && activePrint.inmates && (
                         <>
                             <div className="kop-surat">
-                                <h1>NUSA KAMBANGAN SUPERMAX</h1>
-                                <p>Laporan Data Narapidana | DATABASE SQLITE</p>
+                                <div className="kop-logos">
+                                    <img src="/logo-supermax.jpg" alt="Supermax" className="kop-logo kop-logo-left" />
+                                    <div className="kop-text">
+                                        <h1>NUSA KAMBANGAN SUPERMAX</h1>
+                                        <p>Laporan Data Narapidana | DATABASE SQLITE</p>
+                                    </div>
+                                    <img src="/logo-upb.jpg" alt="UPB" className="kop-logo kop-logo-right" />
+                                </div>
                             </div>
                             <div style={{ marginBottom: '20px', color: 'black' }}>
                                 <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Total Narapidana:</strong> {activePrint.inmates.length}</p>

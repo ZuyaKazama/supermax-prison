@@ -1731,7 +1731,27 @@ footer {
         margin-bottom: 25px;
     }
 
-    .kop-surat h1 {
+    .kop-logos {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .kop-logo {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .kop-text {
+        flex: 1;
+        text-align: center;
+    }
+
+    .kop-surat h1,
+    .kop-text h1 {
         margin: 0 0 5px 0;
         font-size: 28px;
         color: black !important;
@@ -1739,7 +1759,8 @@ footer {
         letter-spacing: 2px;
     }
 
-    .kop-surat p {
+    .kop-surat p,
+    .kop-text p {
         font-size: 14px;
         margin: 0;
         font-family: 'Share Tech Mono', monospace;
