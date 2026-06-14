@@ -1188,6 +1188,51 @@ function App() {
                             </div>
                         </>
                     )}
+                    {printType === 'datanapi' && activePrint.inmates && (
+                        <>
+                            <div className="kop-surat">
+                                <h1>NUSA KAMBANGAN SUPERMAX</h1>
+                                <p>Laporan Data Narapidana | DATABASE SQLITE</p>
+                            </div>
+                            <div style={{ marginBottom: '20px', color: 'black' }}>
+                                <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Total Narapidana:</strong> {activePrint.inmates.length}</p>
+                                <p style={{ fontSize: '14px', margin: '4px 0' }}><strong>Dicetak pada:</strong> {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} — {new Date().toLocaleTimeString('id-ID')}</p>
+                            </div>
+                            <table className="dossier-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th><th>ID Napi</th><th>Alias</th><th>Kejahatan</th>
+                                        <th>Blok Sel</th><th>Umur</th><th>JK</th><th>Hukuman</th>
+                                        <th>Tgl Masuk</th><th>Tier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activePrint.inmates.map((inm, idx) => (
+                                        <tr key={inm.id}>
+                                            <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                                            <td style={{ fontWeight: 'bold', fontSize: '12px' }}>{inm.id}</td>
+                                            <td>{inm.alias}</td>
+                                            <td>{inm.crimeType}</td>
+                                            <td>{inm.cell}</td>
+                                            <td style={{ textAlign: 'center' }}>{inm.age}</td>
+                                            <td style={{ textAlign: 'center' }}>{inm.gender === 'L' ? 'L' : 'P'}</td>
+                                            <td>{inm.exitDate}</td>
+                                            <td style={{ fontSize: '11px' }}>{inm.entryDate}</td>
+                                            <td>{inm.tier}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end', color: 'black' }}>
+                                <div style={{ textAlign: 'center', width: '300px' }}>
+                                    <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Dicetak pada: {new Date().toLocaleDateString('id-ID')}</p>
+                                    <p style={{ margin: '0 0 80px 0', fontWeight: 'bold', fontSize: '16px' }}>KEPALA LEMBAGA PEMASYARAKATAN</p>
+                                    <div style={{ borderBottom: '2px solid black', width: '100%', display: 'inline-block' }}></div>
+                                    <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>NIP. 19800512 200501 1 004</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
         </>

@@ -1695,6 +1695,10 @@ footer {
 }
 
 @media print {
+    @page {
+        margin: 0;
+    }
+
     html, body, #root {
         background-color: white !important;
         background: none !important;
@@ -1715,7 +1719,7 @@ footer {
 
     .print-container {
         display: block !important;
-        padding: 0;
+        padding: 15mm 20mm;
         color: black !important;
         background-color: white !important;
     }
